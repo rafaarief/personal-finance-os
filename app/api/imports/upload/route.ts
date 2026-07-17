@@ -5,7 +5,7 @@ import { runStatementExtraction } from "@/lib/statementImport/runExtraction";
 
 // Fluid Compute on Vercel supports up to 800s; extraction of a few hundred
 // rows in one Claude call is well within that, no background worker needed.
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const formData = await request.formData();
