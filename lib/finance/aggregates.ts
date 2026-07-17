@@ -1,0 +1,354 @@
+import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db/client";
+
+function toNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  return typeof value === "number" ? value : parseFloat(value);
+}
+
+// --- Module 1: Wealth Dashboard ---------------------------------------------
+
+export interface WealthSummary {
+  netWorth: number;
+  liquidAssets: number;
+  nonLiquidAssets: number;
+  cashPosition: number;
+  investmentValue: number;
+  businessValue: number;
+  allocation: { category: string; value: number }[];
+}
+
+const LIQUID_CATEGORIES = new Set(["cash", "investment"]);
+
+export async function getWealthSummary(): Promise<WealthSummary> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      category: schema.assets.category,
+      total: sql<string>`coalesce(sum(${schema.assets.currentValue}), 0)`,
+    })
+    .from(schema.assets)
+    .where(eq(schema.assets.isActive, true))
+    .groupBy(schema.assets.category);
+
+  let netWorth = 0;
+  let liquidAssets = 0;
+  let nonLiquidAssets = 0;
+  let cashPosition = 0;
+  let investmentValue = 0;
+  let businessValue = 0;
+  const allocation: { category: string; value: number }[] = [];
+
+  for (const row of rows) {
+    const value = toNumber(row.total);
+    netWorth += value;
+    allocation.push({ category: row.category, value });
+
+    if (LIQUID_CATEGORIES.has(row.category)) liquidAssets += value;
+    else nonLiquidAssets += value;
+
+    if (row.category === "cash") cashPosition += value;
+    if (row.category === "investment") investmentValue += value;
+    if (row.category === "business") businessValue += value;
+  }
+
+  return { netWorth, liquidAssets, nonLiquidAssets, cashPosition, investmentValue, businessValue, allocation };
+}
+
+export interface NetWorthHistoryPoint {
+  month: string; // YYYY-MM
+  netWorth: number;
+}
+
+/** One point per month: the sum of each asset's latest snapshot value on/before that month. */
+export async function getNetWorthHistory(monthsBack = 24): Promise<NetWorthHistoryPoint[]> {
+  const db = getDb();
+  const rows = await db.execute<{ month: string; net_worth: string }>(sql`
+    with months as (
+      select to_char(date_trunc('month', d), 'YYYY-MM') as month
+      from generate_series(
+        date_trunc('month', now()) - (${monthsBack}::int || ' months')::interval,
+        date_trunc('month', now()),
+        '1 month'
+      ) as d
+    ),
+    latest_per_asset_month as (
+      select
+        m.month,
+        s.asset_id,
+        (array_agg(s.current_value order by s.snapshot_date desc))[1] as current_value
+      from months m
+      join ${schema.assetValueSnapshots} s
+        on to_char(date_trunc('month', s.snapshot_date), 'YYYY-MM') <= m.month
+      group by m.month, s.asset_id
+    )
+    select month, coalesce(sum(current_value), 0) as net_worth
+    from latest_per_asset_month
+    group by month
+    order by month
+  `);
+
+  return rows.map((row) => ({ month: row.month, netWorth: toNumber(row.net_worth) }));
+}
+
+// --- Module 5: Expense & Income Dashboard -----------------------------------
+
+export interface MonthlyIncomeExpense {
+  month: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export async function getMonthlyIncomeExpense(monthsBack = 12): Promise<MonthlyIncomeExpense[]> {
+  const db = getDb();
+  const rows = await db.execute<{ month: string; income: string; expense: string }>(sql`
+    select
+      to_char(date_trunc('month', ${schema.transactions.transactionDate}), 'YYYY-MM') as month,
+      coalesce(sum(${schema.transactions.moneyIn}) filter (where ${schema.categories.kind} = 'income'), 0) as income,
+      coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.categories.kind} = 'expense'), 0) as expense
+    from ${schema.transactions}
+    left join ${schema.categories} on ${schema.categories.id} = ${schema.transactions.categoryId}
+    where ${schema.transactions.transactionDate} >= date_trunc('month', now()) - (${monthsBack}::int || ' months')::interval
+    group by month
+    order by month
+  `);
+
+  return rows.map((row) => {
+    const income = toNumber(row.income);
+    const expense = toNumber(row.expense);
+    return { month: row.month, income, expense, net: income - expense };
+  });
+}
+
+export interface CategoryBreakdown {
+  categoryKey: string;
+  categoryLabel: string;
+  total: number;
+}
+
+export async function getExpenseByCategory(month: string): Promise<CategoryBreakdown[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      categoryKey: schema.categories.key,
+      categoryLabel: schema.categories.label,
+      total: sql<string>`coalesce(sum(${schema.transactions.moneyOut}), 0)`,
+    })
+    .from(schema.transactions)
+    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(
+      and(
+        eq(schema.categories.kind, "expense"),
+        sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
+      )
+    )
+    .groupBy(schema.categories.key, schema.categories.label)
+    .orderBy(desc(sql`sum(${schema.transactions.moneyOut})`));
+
+  return rows.map((row) => ({ ...row, total: toNumber(row.total) }));
+}
+
+export async function getIncomeBySource(month: string): Promise<CategoryBreakdown[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      categoryKey: schema.categories.key,
+      categoryLabel: schema.categories.label,
+      total: sql<string>`coalesce(sum(${schema.transactions.moneyIn}), 0)`,
+    })
+    .from(schema.transactions)
+    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(
+      and(
+        eq(schema.categories.kind, "income"),
+        sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
+      )
+    )
+    .groupBy(schema.categories.key, schema.categories.label)
+    .orderBy(desc(sql`sum(${schema.transactions.moneyIn})`));
+
+  return rows.map((row) => ({ ...row, total: toNumber(row.total) }));
+}
+
+export interface LargestTransaction {
+  id: string;
+  transactionDate: string;
+  description: string;
+  amount: number;
+}
+
+export async function getLargestTransactions(month: string, limit = 10): Promise<LargestTransaction[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: schema.transactions.id,
+      transactionDate: schema.transactions.transactionDate,
+      description: schema.transactions.description,
+      moneyOut: schema.transactions.moneyOut,
+    })
+    .from(schema.transactions)
+    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(
+      and(
+        ne(schema.categories.kind, "transfer"),
+        sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
+      )
+    )
+    .orderBy(desc(schema.transactions.moneyOut))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    transactionDate: row.transactionDate,
+    description: row.description,
+    amount: toNumber(row.moneyOut),
+  }));
+}
+
+/** Counterparty + amount bucket appearing in >=3 of the trailing 6 months = likely recurring. */
+export async function getRecurringExpenses(): Promise<{ description: string; averageAmount: number; monthsSeen: number }[]> {
+  const db = getDb();
+  const rows = await db.execute<{ description: string; average_amount: string; months_seen: string }>(sql`
+    select
+      lower(trim(${schema.transactions.description})) as description,
+      avg(${schema.transactions.moneyOut}) as average_amount,
+      count(distinct to_char(${schema.transactions.transactionDate}, 'YYYY-MM')) as months_seen
+    from ${schema.transactions}
+    join ${schema.categories} on ${schema.categories.id} = ${schema.transactions.categoryId}
+    where ${schema.categories.kind} = 'expense'
+      and ${schema.transactions.transactionDate} >= date_trunc('month', now()) - interval '6 months'
+    group by lower(trim(${schema.transactions.description}))
+    having count(distinct to_char(${schema.transactions.transactionDate}, 'YYYY-MM')) >= 3
+    order by months_seen desc, average_amount desc
+  `);
+
+  return rows.map((row) => ({
+    description: row.description,
+    averageAmount: toNumber(row.average_amount),
+    monthsSeen: parseInt(row.months_seen, 10),
+  }));
+}
+
+export async function getBusinessVsPersonalSplit(month: string): Promise<{ business: number; personal: number }> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      business: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.transactions.isBusiness}), 0)`,
+      personal: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where not ${schema.transactions.isBusiness}), 0)`,
+    })
+    .from(schema.transactions)
+    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(
+      and(
+        eq(schema.categories.kind, "expense"),
+        sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
+      )
+    );
+
+  return { business: toNumber(row?.business), personal: toNumber(row?.personal) };
+}
+
+// --- Module 6: Investment Dashboard ------------------------------------------
+
+const INVESTMENT_SUBCATEGORIES = new Set(["Gold", "Property"]);
+
+export interface InvestmentSummary {
+  currentValue: number;
+  costBasis: number;
+  unrealizedGain: number;
+  roi: number | null;
+  allocation: { name: string; subcategory: string; currentValue: number }[];
+}
+
+export async function getInvestmentSummary(): Promise<InvestmentSummary> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      name: schema.assets.name,
+      subcategory: schema.assets.subcategory,
+      currentValue: schema.assets.currentValue,
+      purchaseValue: schema.assets.purchaseValue,
+      category: schema.assets.category,
+    })
+    .from(schema.assets)
+    .where(eq(schema.assets.isActive, true));
+
+  const investmentAssets = rows.filter(
+    (row) => row.category === "investment" || row.category === "business" || INVESTMENT_SUBCATEGORIES.has(row.subcategory)
+  );
+
+  let currentValue = 0;
+  let costBasis = 0;
+  const allocation = investmentAssets.map((asset) => {
+    const value = toNumber(asset.currentValue);
+    currentValue += value;
+    costBasis += toNumber(asset.purchaseValue);
+    return { name: asset.name, subcategory: asset.subcategory, currentValue: value };
+  });
+
+  const unrealizedGain = currentValue - costBasis;
+  const roi = costBasis > 0 ? unrealizedGain / costBasis : null;
+
+  return { currentValue, costBasis, unrealizedGain, roi, allocation };
+}
+
+// --- Module 7: Cashflow Dashboard ---------------------------------------------
+
+export interface CashflowSummary {
+  beginningCash: number;
+  moneyIn: number;
+  moneyOut: number;
+  endingCash: number;
+  savingRate: number | null;
+  investmentRate: number | null;
+  burnRate: number;
+  runwayMonths: number | null;
+  emergencyFundRatio: number | null;
+}
+
+export async function getCashflowSummary(month: string): Promise<CashflowSummary> {
+  const db = getDb();
+
+  const [flows] = await db
+    .select({
+      moneyIn: sql<string>`coalesce(sum(${schema.transactions.moneyIn}) filter (where ${schema.categories.kind} != 'transfer'), 0)`,
+      moneyOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.categories.kind} != 'transfer'), 0)`,
+      investmentOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.transactions.isInvestment}), 0)`,
+    })
+    .from(schema.transactions)
+    .leftJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`);
+
+  const moneyIn = toNumber(flows?.moneyIn);
+  const moneyOut = toNumber(flows?.moneyOut);
+  const investmentOut = toNumber(flows?.investmentOut);
+
+  const wealth = await getWealthSummary();
+  const endingCash = wealth.cashPosition;
+  const beginningCash = endingCash - moneyIn + moneyOut;
+
+  const savingRate = moneyIn > 0 ? (moneyIn - moneyOut) / moneyIn : null;
+  const investmentRate = moneyIn > 0 ? investmentOut / moneyIn : null;
+  const burnRate = Math.max(0, moneyOut - moneyIn);
+  const runwayMonths = burnRate > 0 ? endingCash / burnRate : null;
+
+  const monthlyExpenseAverage = await getMonthlyIncomeExpense(6);
+  const avgExpense =
+    monthlyExpenseAverage.length > 0
+      ? monthlyExpenseAverage.reduce((sum, row) => sum + row.expense, 0) / monthlyExpenseAverage.length
+      : 0;
+  const emergencyFundRatio = avgExpense > 0 ? endingCash / avgExpense : null;
+
+  return {
+    beginningCash,
+    moneyIn,
+    moneyOut,
+    endingCash,
+    savingRate,
+    investmentRate,
+    burnRate,
+    runwayMonths,
+    emergencyFundRatio,
+  };
+}

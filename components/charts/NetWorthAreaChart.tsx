@@ -1,0 +1,59 @@
+"use client";
+
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatCompactMoney, formatMonthLabel } from "@/lib/format/money";
+
+interface NetWorthAreaChartProps {
+  data: { month: string; netWorth: number }[];
+}
+
+export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
+  return (
+    <div className="h-72 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-seq-purple-400)" stopOpacity={0.45} />
+              <stop offset="100%" stopColor="var(--color-seq-purple-400)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="rgb(255 255 255 / 6%)" vertical={false} />
+          <XAxis
+            dataKey="month"
+            tickFormatter={formatMonthLabel}
+            tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
+            axisLine={{ stroke: "rgb(255 255 255 / 14%)" }}
+            tickLine={false}
+          />
+          <YAxis
+            tickFormatter={(value: number) => formatCompactMoney(value)}
+            tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            width={72}
+          />
+          <Tooltip
+            labelFormatter={((month: any) => formatMonthLabel(String(month))) as any}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            formatter={((value: any) => [formatCompactMoney(Number(value)), "Net worth"]) as any}
+            contentStyle={{
+              background: "var(--color-surface-raised)",
+              border: "1px solid var(--color-border-hairline)",
+              borderRadius: 12,
+              color: "var(--color-ink-primary)",
+            }}
+            cursor={{ stroke: "var(--color-cat-purple)", strokeWidth: 1 }}
+          />
+          <Area
+            type="monotone"
+            dataKey="netWorth"
+            stroke="var(--color-seq-purple-400)"
+            strokeWidth={2}
+            fill="url(#netWorthFill)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

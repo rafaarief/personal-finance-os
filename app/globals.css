@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/*
+ * Neo-Minimal Fintech theme tokens.
+ * Categorical chart palette validated with the dataviz skill's
+ * scripts/validate_palette.js against both surfaces below — see
+ * PALETTE.md for the check report. Order is fixed (coral, purple, peach,
+ * rose, gold, blue, teal) and must not be re-cycled per-chart.
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  /* Page / surfaces (dark-first) */
+  --color-plane: #0d0b10;
+  --color-surface: #15121a;
+  --color-surface-raised: #1b1721;
+  --color-surface-glass: rgb(255 255 255 / 6%);
+  --color-border-hairline: rgb(255 255 255 / 10%);
+
+  /* Ink */
+  --color-ink-primary: #f7f3ee;
+  --color-ink-secondary: #b9afc4;
+  --color-ink-muted: #8a8296;
+
+  /* Categorical (fixed order — see PALETTE.md) */
+  --color-cat-coral: #d15c56;
+  --color-cat-purple: #9b6bce;
+  --color-cat-peach: #c9690c;
+  --color-cat-rose: #c35c9b;
+  --color-cat-gold: #af7c00;
+  --color-cat-blue: #4087de;
+  --color-cat-teal: #00a16f;
+
+  /* Sequential (purple, light -> dark) */
+  --color-seq-purple-100: #ece3f8;
+  --color-seq-purple-200: #ceb9e9;
+  --color-seq-purple-300: #ae8cd5;
+  --color-seq-purple-400: #9565c7;
+  --color-seq-purple-500: #70449c;
+  --color-seq-purple-600: #4b2a6a;
+
+  /* Diverging: coral (negative) <-> teal (positive), gray midpoint */
+  --color-delta-negative: #d15c56;
+  --color-delta-negative-strong: #ac3031;
+  --color-delta-positive: #00a16f;
+  --color-delta-positive-strong: #00734b;
+  --color-delta-neutral: #383835;
+
+  /* Status (fixed, never themed) */
+  --color-status-good: #0ca30c;
+  --color-status-warning: #fab219;
+  --color-status-serious: #ec835a;
+  --color-status-critical: #d03b3b;
+
+  /* Brand gradient accents */
+  --gradient-hero: linear-gradient(135deg, #9b6bce 0%, #c9690c 55%, #d15c56 100%);
+  --gradient-card: linear-gradient(160deg, rgb(155 107 206 / 16%) 0%, rgb(201 105 12 / 10%) 100%);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-plane);
+    color: var(--color-ink-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgb(155 107 206 / 35%);
+  }
+}
+
+@layer components {
+  /* Glassmorphic card: translucent surface, hairline border, soft blur */
+  .glass-card {
+    background: var(--color-surface-glass);
+    border: 1px solid var(--color-border-hairline);
+    border-radius: 1.5rem;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Neumorphic surface: soft dual-shadow, no border, reads as raised from the plane */
+  .neu-surface {
+    background: var(--color-surface-raised);
+    border-radius: 1.5rem;
+    box-shadow:
+      8px 8px 20px rgb(0 0 0 / 35%),
+      -6px -6px 16px rgb(255 255 255 / 3%);
+  }
+
+  .gradient-accent-text {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
