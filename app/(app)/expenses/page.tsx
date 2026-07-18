@@ -7,15 +7,12 @@ import {
   getBusinessVsPersonalSplit,
 } from "@/lib/finance/aggregates";
 import { EXPENSE_CATEGORY_COLOR, INCOME_CATEGORY_COLOR, colorForKey } from "@/lib/finance/chartColors";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, formatPercent } from "@/lib/format/money";
+import { currentMonthString, previousMonthString } from "@/lib/format/date";
 import { StatTile } from "@/components/ui/StatTile";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
 import { IncomeExpenseTrendChart } from "@/components/charts/IncomeExpenseTrendChart";
-
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
 
 export const dynamic = "force-dynamic";
 
@@ -25,18 +22,33 @@ export default async function ExpensesPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { month: monthParam } = await searchParams;
-  const month = monthParam ?? currentMonth();
+  const month = monthParam ?? currentMonthString();
+  const previousMonth = previousMonthString(month);
 
-  const [trend, expenseByCategory, incomeBySource, largest, recurring, split] = await Promise.all([
-    getMonthlyIncomeExpense(12),
-    getExpenseByCategory(month),
-    getIncomeBySource(month),
-    getLargestTransactions(month, 8),
-    getRecurringExpenses(),
-    getBusinessVsPersonalSplit(month),
-  ]);
+  const [trend, expenseByCategory, previousExpenseByCategory, incomeBySource, largest, recurring, split] =
+    await Promise.all([
+      getMonthlyIncomeExpense(12),
+      getExpenseByCategory(month),
+      getExpenseByCategory(previousMonth),
+      getIncomeBySource(month),
+      getLargestTransactions(month, 8),
+      getRecurringExpenses(),
+      getBusinessVsPersonalSplit(month),
+    ]);
 
   const thisMonth = trend.find((row) => row.month === month) ?? { income: 0, expense: 0, net: 0 };
+
+  const totalExpense = expenseByCategory.reduce((sum, row) => sum + row.total, 0);
+  const previousByKey = new Map(previousExpenseByCategory.map((row) => [row.categoryKey, row.total]));
+  const expenseTrend = expenseByCategory
+    .map((row) => {
+      const previousTotal = previousByKey.get(row.categoryKey) ?? 0;
+      const changePct = previousTotal > 0 ? (row.total - previousTotal) / previousTotal : null;
+      return { ...row, changePct };
+    })
+    .filter((row) => row.changePct !== null)
+    .sort((a, b) => Math.abs(b.changePct!) - Math.abs(a.changePct!))
+    .slice(0, 6);
 
   return (
     <div className="space-y-8">
@@ -71,16 +83,28 @@ export default async function ExpensesPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <GlassCard>
-          <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Expense by category</h2>
+          <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Where your money goes</h2>
           <div className="mt-4">
             {expenseByCategory.length > 0 ? (
-              <CategoryBarChart
-                data={expenseByCategory.map((row) => ({
-                  label: row.categoryLabel,
-                  value: row.total,
-                  color: colorForKey(EXPENSE_CATEGORY_COLOR, row.categoryKey),
-                }))}
-              />
+              <>
+                <CategoryBarChart
+                  data={expenseByCategory.map((row) => ({
+                    label: row.categoryLabel,
+                    value: row.total,
+                    color: colorForKey(EXPENSE_CATEGORY_COLOR, row.categoryKey),
+                  }))}
+                />
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  {expenseByCategory.map((row) => (
+                    <li key={row.categoryKey} className="flex items-center justify-between">
+                      <span className="text-(--color-ink-secondary)">{row.categoryLabel}</span>
+                      <span className="tabular text-(--color-ink-primary)">
+                        {totalExpense > 0 ? formatPercent(row.total / totalExpense, 0) : "0%"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
               <p className="text-sm text-(--color-ink-muted)">No expenses recorded for this month.</p>
             )}
@@ -104,6 +128,28 @@ export default async function ExpensesPage({
           </div>
         </GlassCard>
       </div>
+
+      <GlassCard>
+        <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Expense trend</h2>
+        <p className="mt-1 text-sm text-(--color-ink-muted)">Biggest movers vs {previousMonth}</p>
+        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          {expenseTrend.map((row) => (
+            <div key={row.categoryKey} className="flex items-center justify-between">
+              <span className="text-(--color-ink-secondary)">{row.categoryLabel}</span>
+              <span
+                className="tabular font-medium"
+                style={{
+                  color:
+                    row.changePct! > 0 ? "var(--color-delta-negative-strong)" : "var(--color-delta-positive-strong)",
+                }}
+              >
+                {row.changePct! > 0 ? "▲" : "▼"} {formatPercent(Math.abs(row.changePct!), 0)}
+              </span>
+            </div>
+          ))}
+          {expenseTrend.length === 0 ? <p className="text-(--color-ink-muted)">Not enough history yet.</p> : null}
+        </div>
+      </GlassCard>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <GlassCard>

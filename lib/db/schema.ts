@@ -158,6 +158,18 @@ export const transactions = pgTable(
   ]
 );
 
+// --- AI Financial Review (day-cached) ----------------------------------------
+
+export const financialReviews = pgTable("financial_reviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  reviewDate: date("review_date").notNull().unique(),
+  netWorth: numeric("net_worth", { precision: 16, scale: 2 }).notNull(),
+  highlights: jsonb("highlights").notNull(),
+  summary: text("summary").notNull(),
+  recommendation: text("recommendation"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const internalTransferLinks = pgTable(
   "internal_transfer_links",
   {
