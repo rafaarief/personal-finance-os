@@ -1,7 +1,6 @@
 import { getCashflowSummary } from "@/lib/finance/aggregates";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { StatTile } from "@/components/ui/StatTile";
-import { GlassCard } from "@/components/ui/GlassCard";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -35,38 +34,18 @@ export default async function CashflowPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <GlassCard>
-          <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Saving rate</p>
-          <p className="tabular mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">
-            {formatPercent(summary.savingRate)}
-          </p>
-        </GlassCard>
-        <GlassCard>
-          <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Investment rate</p>
-          <p className="tabular mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">
-            {formatPercent(summary.investmentRate)}
-          </p>
-        </GlassCard>
-        <GlassCard>
-          <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Burn rate</p>
-          <p className="tabular mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">
-            {formatMoney(summary.burnRate)}/mo
-          </p>
-        </GlassCard>
-        <GlassCard>
-          <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Runway</p>
-          <p className="tabular mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">
-            {summary.runwayMonths !== null ? `${summary.runwayMonths.toFixed(1)} mo` : "∞"}
-          </p>
-        </GlassCard>
+        <StatTile label="Saving rate" value={formatPercent(summary.savingRate)} />
+        <StatTile label="Investment rate" value={formatPercent(summary.investmentRate)} />
+        <StatTile label="Burn rate" value={`${formatMoney(summary.burnRate)}/mo`} />
+        <StatTile label="Runway" value={summary.runwayMonths !== null ? `${summary.runwayMonths.toFixed(1)} mo` : "∞"} />
       </div>
 
-      <GlassCard className="max-w-sm">
-        <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Emergency fund ratio</p>
-        <p className="tabular mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">
-          {summary.emergencyFundRatio !== null ? `${summary.emergencyFundRatio.toFixed(1)}x monthly expense` : "—"}
-        </p>
-      </GlassCard>
+      <div className="max-w-sm">
+        <StatTile
+          label="Emergency fund ratio"
+          value={summary.emergencyFundRatio !== null ? `${summary.emergencyFundRatio.toFixed(1)}x monthly expense` : "—"}
+        />
+      </div>
     </div>
   );
 }

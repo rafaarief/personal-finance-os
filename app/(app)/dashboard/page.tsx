@@ -46,7 +46,7 @@ export default async function DashboardPage() {
 
       <GlassCard>
         <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Net Worth</p>
-        <p className="tabular mt-2 font-(family-name:--font-display) text-5xl text-(--color-ink-primary)">
+        <p className="tabular mt-2 font-(family-name:--font-display) text-3xl leading-tight break-words text-(--color-ink-primary) sm:text-4xl lg:text-5xl">
           {formatMoney(signals.netWorth)}
         </p>
         {signals.netWorthYoyChangePct !== null ? (

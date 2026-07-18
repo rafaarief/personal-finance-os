@@ -85,7 +85,10 @@
 }
 
 @layer components {
-  /* Glassmorphic card: translucent white surface, hairline border, soft blur + shadow for definition on a light plane */
+  /* Glassmorphic card: translucent white surface, hairline border, soft blur + shadow for definition on a light plane.
+     min-width:0 lets this shrink below its content's intrinsic width inside a grid/flex row (the default `auto` min-width
+     is what let long Rupiah values force the card wider than its column and bleed into the next one); overflow:hidden
+     is the safety net so anything that still doesn't fit gets clipped by the rounded corners instead of spilling out. */
   .glass-card {
     background: var(--color-surface-glass);
     border: 1px solid var(--color-border-hairline);
@@ -93,6 +96,8 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     box-shadow: 0 1px 2px rgb(11 11 11 / 4%), 0 8px 24px rgb(11 11 11 / 6%);
+    min-width: 0;
+    overflow: hidden;
   }
 
   /* Neumorphic surface: soft dual-shadow (dark shadow + light highlight), reads as raised from the plane */
@@ -102,6 +107,8 @@
     box-shadow:
       8px 8px 20px rgb(11 11 11 / 8%),
       -6px -6px 16px rgb(255 255 255 / 90%);
+    min-width: 0;
+    overflow: hidden;
   }
 
   .gradient-accent-text {

@@ -11,7 +11,7 @@ export function StatTile({ label, value, delta, hint }: StatTileProps) {
   return (
     <GlassCard>
       <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{label}</p>
-      <p className="tabular mt-3 font-(family-name:--font-display) text-4xl text-(--color-ink-primary)">
+      <p className="tabular mt-3 font-(family-name:--font-display) text-2xl leading-tight break-words text-(--color-ink-primary) sm:text-3xl">
         {value}
       </p>
       <div className="mt-3 flex items-center gap-2 text-sm">

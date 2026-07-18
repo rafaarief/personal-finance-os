@@ -60,7 +60,7 @@ export default async function AssetsPage() {
                       <GlassCard className="transition hover:border-(--color-cat-purple)">
                         <p className="text-xs text-(--color-ink-muted)">{asset.subcategory}</p>
                         <p className="mt-1 text-lg text-(--color-ink-primary)">{asset.name}</p>
-                        <p className="tabular mt-3 font-(family-name:--font-display) text-2xl text-(--color-ink-primary)">
+                        <p className="tabular mt-3 font-(family-name:--font-display) text-2xl leading-tight break-words text-(--color-ink-primary)">
                           {formatMoney(currentValue, asset.currency)}
                         </p>
                         {roi !== null ? (
