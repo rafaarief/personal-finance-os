@@ -30,7 +30,7 @@ export function CategoryBarChart({ data }: CategoryBarChartProps) {
               borderRadius: 12,
               color: "var(--color-ink-primary)",
             }}
-            cursor={{ fill: "rgb(255 255 255 / 4%)" }}
+            cursor={{ fill: "rgb(11 11 11 / 4%)" }}
           />
           <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={22}>
             {data.map((entry) => (

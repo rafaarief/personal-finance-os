@@ -64,7 +64,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isSubmitting || password.length === 0}
-            className="w-full rounded-2xl px-4 py-3 font-medium text-(--color-plane) transition disabled:opacity-50"
+            className="w-full rounded-2xl px-4 py-3 font-medium text-(--color-on-accent) transition disabled:opacity-50"
             style={{ background: "var(--gradient-hero)" }}
           >
             {isSubmitting ? "Signing in..." : "Sign in"}

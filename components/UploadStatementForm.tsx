@@ -77,7 +77,7 @@ export function UploadStatementForm({ bankAccounts }: UploadStatementFormProps) 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-2xl px-5 py-2.5 font-medium text-(--color-plane) disabled:opacity-50"
+        className="rounded-2xl px-5 py-2.5 font-medium text-(--color-on-accent) disabled:opacity-50"
         style={{ background: "var(--gradient-hero)" }}
       >
         {isSubmitting ? "Extracting transactions..." : "Upload & extract"}

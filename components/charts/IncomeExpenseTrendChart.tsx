@@ -12,12 +12,12 @@ export function IncomeExpenseTrendChart({ data }: IncomeExpenseTrendChartProps) 
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke="rgb(255 255 255 / 6%)" vertical={false} />
+          <CartesianGrid stroke="rgb(11 11 11 / 7%)" vertical={false} />
           <XAxis
             dataKey="month"
             tickFormatter={formatMonthLabel}
             tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
-            axisLine={{ stroke: "rgb(255 255 255 / 14%)" }}
+            axisLine={{ stroke: "rgb(11 11 11 / 14%)" }}
             tickLine={false}
           />
           <YAxis

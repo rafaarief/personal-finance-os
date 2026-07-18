@@ -21,9 +21,9 @@ export function StatTile({ label, value, delta, hint }: StatTileProps) {
             style={{
               color:
                 delta.direction === "up"
-                  ? "var(--color-status-good)"
+                  ? "var(--color-delta-positive-strong)"
                   : delta.direction === "down"
-                    ? "var(--color-status-critical)"
+                    ? "var(--color-delta-negative-strong)"
                     : "var(--color-ink-muted)",
             }}
           >

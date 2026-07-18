@@ -111,7 +111,7 @@ export function AssetForm({ action, defaultValues, submitLabel }: AssetFormProps
 
       <button
         type="submit"
-        className="w-full rounded-2xl px-4 py-3 font-medium text-(--color-plane)"
+        className="w-full rounded-2xl px-4 py-3 font-medium text-(--color-on-accent)"
         style={{ background: "var(--gradient-hero)" }}
       >
         {submitLabel}

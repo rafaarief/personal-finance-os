@@ -62,11 +62,11 @@ export function TransactionsLedger({ rows, categories }: TransactionsLedgerProps
         <div className="glass-card flex items-center justify-between p-4">
           <p className="text-sm text-(--color-ink-secondary)">Link these two transactions as an internal transfer?</p>
           <div className="flex items-center gap-3">
-            {linkError ? <span className="text-sm text-(--color-status-critical)">{linkError}</span> : null}
+            {linkError ? <span className="text-sm text-(--color-delta-negative-strong)">{linkError}</span> : null}
             <button
               onClick={handleLinkTransfer}
               disabled={isLinking}
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-(--color-plane)"
+              className="rounded-full px-4 py-1.5 text-sm font-medium text-(--color-on-accent)"
               style={{ background: "var(--gradient-hero)" }}
             >
               {isLinking ? "Linking..." : "Link as transfer"}
@@ -108,10 +108,10 @@ export function TransactionsLedger({ rows, categories }: TransactionsLedgerProps
                   ) : null}
                 </td>
                 <td className="p-3 text-(--color-ink-muted)">{row.bankAccountName}</td>
-                <td className="tabular p-3 text-right text-(--color-status-good)">
+                <td className="tabular p-3 text-right text-(--color-delta-positive-strong)">
                   {row.moneyIn ? formatMoney(row.moneyIn) : ""}
                 </td>
-                <td className="tabular p-3 text-right text-(--color-status-critical)">
+                <td className="tabular p-3 text-right text-(--color-delta-negative-strong)">
                   {row.moneyOut ? formatMoney(row.moneyOut) : ""}
                 </td>
                 <td className="p-3">

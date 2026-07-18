@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 /*
- * Neo-Minimal Fintech theme tokens.
+ * Neo-Minimal Fintech theme tokens — light base for readability.
  * Categorical chart palette validated with the dataviz skill's
- * scripts/validate_palette.js against both surfaces below — see
+ * scripts/validate_palette.js against the light surface below — see
  * PALETTE.md for the check report. Order is fixed (coral, purple, peach,
  * rose, gold, blue, teal) and must not be re-cycled per-chart.
  */
@@ -11,26 +11,32 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 
-  /* Page / surfaces (dark-first) */
-  --color-plane: #0d0b10;
-  --color-surface: #15121a;
-  --color-surface-raised: #1b1721;
-  --color-surface-glass: rgb(255 255 255 / 6%);
-  --color-border-hairline: rgb(255 255 255 / 10%);
+  /* Page / surfaces (light base) */
+  --color-plane: #f5efe6;
+  --color-surface: #faf6f0;
+  --color-surface-raised: #fdfbf7;
+  --color-surface-glass: rgb(255 255 255 / 65%);
+  --color-border-hairline: rgb(11 11 11 / 9%);
 
   /* Ink */
-  --color-ink-primary: #f7f3ee;
-  --color-ink-secondary: #b9afc4;
+  --color-ink-primary: #1a1520;
+  --color-ink-secondary: #5b5468;
   --color-ink-muted: #8a8296;
 
-  /* Categorical (fixed order — see PALETTE.md) */
-  --color-cat-coral: #d15c56;
-  --color-cat-purple: #9b6bce;
-  --color-cat-peach: #c9690c;
-  --color-cat-rose: #c35c9b;
-  --color-cat-gold: #af7c00;
-  --color-cat-blue: #4087de;
-  --color-cat-teal: #00a16f;
+  /* Stable dark ink for text sitting on the gradient/accent surfaces —
+     deliberately not tied to --color-plane, since the gradient's mid-tone
+     hues stay the same regardless of the page theme. */
+  --color-on-accent: #1a1520;
+
+  /* Categorical (fixed order — see PALETTE.md). Deeper/more saturated than
+     the dark-mode set, needed for contrast against a light surface. */
+  --color-cat-coral: #bd413f;
+  --color-cat-purple: #8854bb;
+  --color-cat-peach: #b55000;
+  --color-cat-rose: #af4387;
+  --color-cat-gold: #9c6600;
+  --color-cat-blue: #2171cc;
+  --color-cat-teal: #008d59;
 
   /* Sequential (purple, light -> dark) */
   --color-seq-purple-100: #ece3f8;
@@ -40,7 +46,10 @@
   --color-seq-purple-500: #70449c;
   --color-seq-purple-600: #4b2a6a;
 
-  /* Diverging: coral (negative) <-> teal (positive), gray midpoint */
+  /* Diverging: coral (negative) <-> teal (positive), gray midpoint.
+     "-strong" steps are the ones used for small text/deltas — the base
+     steps read fine as chart fills but are too light for AA text contrast
+     on this surface. */
   --color-delta-negative: #d15c56;
   --color-delta-negative-strong: #ac3031;
   --color-delta-positive: #00a16f;
@@ -55,12 +64,12 @@
 
   /* Brand gradient accents */
   --gradient-hero: linear-gradient(135deg, #9b6bce 0%, #c9690c 55%, #d15c56 100%);
-  --gradient-card: linear-gradient(160deg, rgb(155 107 206 / 16%) 0%, rgb(201 105 12 / 10%) 100%);
+  --gradient-card: linear-gradient(160deg, rgb(155 107 206 / 12%) 0%, rgb(201 105 12 / 8%) 100%);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
@@ -71,27 +80,28 @@
   }
 
   ::selection {
-    background: rgb(155 107 206 / 35%);
+    background: rgb(155 107 206 / 25%);
   }
 }
 
 @layer components {
-  /* Glassmorphic card: translucent surface, hairline border, soft blur */
+  /* Glassmorphic card: translucent white surface, hairline border, soft blur + shadow for definition on a light plane */
   .glass-card {
     background: var(--color-surface-glass);
     border: 1px solid var(--color-border-hairline);
     border-radius: 1.5rem;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 1px 2px rgb(11 11 11 / 4%), 0 8px 24px rgb(11 11 11 / 6%);
   }
 
-  /* Neumorphic surface: soft dual-shadow, no border, reads as raised from the plane */
+  /* Neumorphic surface: soft dual-shadow (dark shadow + light highlight), reads as raised from the plane */
   .neu-surface {
     background: var(--color-surface-raised);
     border-radius: 1.5rem;
     box-shadow:
-      8px 8px 20px rgb(0 0 0 / 35%),
-      -6px -6px 16px rgb(255 255 255 / 3%);
+      8px 8px 20px rgb(11 11 11 / 8%),
+      -6px -6px 16px rgb(255 255 255 / 90%);
   }
 
   .gradient-accent-text {

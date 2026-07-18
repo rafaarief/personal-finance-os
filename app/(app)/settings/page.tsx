@@ -70,7 +70,7 @@ export default async function SettingsPage() {
             </div>
             <button
               type="submit"
-              className="rounded-2xl px-5 py-2.5 font-medium text-(--color-plane)"
+              className="rounded-2xl px-5 py-2.5 font-medium text-(--color-on-accent)"
               style={{ background: "var(--gradient-hero)" }}
             >
               Add bank account

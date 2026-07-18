@@ -14,16 +14,16 @@ export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-seq-purple-400)" stopOpacity={0.45} />
-              <stop offset="100%" stopColor="var(--color-seq-purple-400)" stopOpacity={0} />
+              <stop offset="0%" stopColor="var(--color-seq-purple-500)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--color-seq-purple-500)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="rgb(255 255 255 / 6%)" vertical={false} />
+          <CartesianGrid stroke="rgb(11 11 11 / 7%)" vertical={false} />
           <XAxis
             dataKey="month"
             tickFormatter={formatMonthLabel}
             tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
-            axisLine={{ stroke: "rgb(255 255 255 / 14%)" }}
+            axisLine={{ stroke: "rgb(11 11 11 / 14%)" }}
             tickLine={false}
           />
           <YAxis
@@ -48,7 +48,7 @@ export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
           <Area
             type="monotone"
             dataKey="netWorth"
-            stroke="var(--color-seq-purple-400)"
+            stroke="var(--color-seq-purple-500)"
             strokeWidth={2}
             fill="url(#netWorthFill)"
           />

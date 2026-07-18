@@ -28,7 +28,7 @@ export default async function AssetsPage() {
         <h1 className="font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Assets</h1>
         <Link
           href="/assets/new"
-          className="rounded-full px-4 py-2 text-sm font-medium text-(--color-plane)"
+          className="rounded-full px-4 py-2 text-sm font-medium text-(--color-on-accent)"
           style={{ background: "var(--gradient-hero)" }}
         >
           + Add asset
@@ -66,7 +66,7 @@ export default async function AssetsPage() {
                         {roi !== null ? (
                           <p
                             className="mt-1 text-sm"
-                            style={{ color: roi >= 0 ? "var(--color-status-good)" : "var(--color-status-critical)" }}
+                            style={{ color: roi >= 0 ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
                           >
                             {roi >= 0 ? "▲" : "▼"} {formatPercent(roi)} ROI
                           </p>

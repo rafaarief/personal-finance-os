@@ -72,10 +72,10 @@ export function ReviewTable({ importId, initialRows, categories }: ReviewTablePr
                       </span>
                     ) : null}
                   </td>
-                  <td className="tabular p-3 text-right text-(--color-status-good)">
+                  <td className="tabular p-3 text-right text-(--color-delta-positive-strong)">
                     {row.moneyIn ? formatMoney(row.moneyIn) : ""}
                   </td>
-                  <td className="tabular p-3 text-right text-(--color-status-critical)">
+                  <td className="tabular p-3 text-right text-(--color-delta-negative-strong)">
                     {row.moneyOut ? formatMoney(row.moneyOut) : ""}
                   </td>
                   <td className="p-3">
@@ -129,13 +129,13 @@ export function ReviewTable({ importId, initialRows, categories }: ReviewTablePr
         </table>
       </div>
 
-      {error ? <p className="text-sm text-(--color-status-critical)">{error}</p> : null}
+      {error ? <p className="text-sm text-(--color-delta-negative-strong)">{error}</p> : null}
 
       <div className="flex items-center gap-4">
         <button
           onClick={handleCommit}
           disabled={isSubmitting || newCount === 0}
-          className="rounded-2xl px-5 py-2.5 font-medium text-(--color-plane) disabled:opacity-50"
+          className="rounded-2xl px-5 py-2.5 font-medium text-(--color-on-accent) disabled:opacity-50"
           style={{ background: "var(--gradient-hero)" }}
         >
           {isSubmitting ? "Committing..." : `Commit ${newCount} transaction${newCount === 1 ? "" : "s"}`}
