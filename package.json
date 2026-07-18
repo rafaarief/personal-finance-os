@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx lib/db/migrate.ts",
-    "db:seed": "tsx lib/db/seed.ts"
+    "db:seed": "tsx lib/db/seed.ts",
+    "import:accounting": "tsx scripts/import-accounting-calculation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.1",
@@ -26,6 +27,7 @@
     "react-dom": "^19.2.7",
     "recharts": "^3.9.2",
     "unpdf": "^1.6.2",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {

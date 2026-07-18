@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Wealth" },
@@ -16,6 +16,12 @@ const NAV_ITEMS = [
 
 export function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+  }
 
   return (
     <header className="sticky top-0 z-10 border-b border-(--color-border-hairline) bg-(--color-plane)/80 backdrop-blur-xl">
@@ -42,6 +48,13 @@ export function NavBar() {
             );
           })}
         </nav>
+
+        <button
+          onClick={handleLogout}
+          className="text-sm text-(--color-ink-muted) transition hover:text-(--color-ink-primary)"
+        >
+          Sign out
+        </button>
       </div>
     </header>
   );

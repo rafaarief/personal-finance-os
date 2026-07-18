@@ -7,3 +7,6 @@ node_modules/
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+.vercel
+.env*
+/data/*.xlsx
