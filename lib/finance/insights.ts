@@ -20,6 +20,7 @@ export interface FinancialSignals {
   netWorthIsAllTimeHigh: boolean;
   liquidAssets: number;
   liquidityRatio: number | null;
+  nonLiquidAssets: number;
   cashPosition: number;
   cashAllocationPct: number | null;
   investmentValue: number;
@@ -113,6 +114,7 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     netWorthIsAllTimeHigh,
     liquidAssets: wealth?.liquidAssets ?? 0,
     liquidityRatio,
+    nonLiquidAssets: wealth?.nonLiquidAssets ?? 0,
     cashPosition: wealth?.cashPosition ?? 0,
     cashAllocationPct,
     investmentValue: wealth?.investmentValue ?? 0,

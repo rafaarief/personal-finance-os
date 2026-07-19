@@ -76,11 +76,16 @@ export default async function DashboardPage() {
         ) : null}
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <StatTile
           label="Liquid Assets"
           value={formatMoney(signals.liquidAssets)}
           hint={signals.liquidityRatio !== null ? `${formatPercent(signals.liquidityRatio)} of net worth` : undefined}
+        />
+        <StatTile
+          label="Non-Liquid Assets"
+          value={formatMoney(signals.nonLiquidAssets)}
+          hint={signals.netWorth > 0 ? formatPercent(signals.nonLiquidAssets / signals.netWorth) : undefined}
         />
         <StatTile
           label="Cash Position"
