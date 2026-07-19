@@ -32,14 +32,19 @@ export default async function InvestmentsPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Current value" value={formatMoney(summary.currentValue)} />
-        <StatTile label="Cost basis" value={formatMoney(summary.costBasis)} />
+        <StatTile label="Cost basis" value={summary.costBasis !== null ? formatMoney(summary.costBasis) : "Not provided"} />
         <StatTile
           label="Unrealized gain"
-          value={formatMoney(summary.unrealizedGain)}
-          delta={{
-            value: formatPercent(summary.roi),
-            direction: summary.unrealizedGain > 0 ? "up" : summary.unrealizedGain < 0 ? "down" : "flat",
-          }}
+          value={summary.unrealizedGain !== null ? formatMoney(summary.unrealizedGain) : "Not provided"}
+          delta={
+            summary.unrealizedGain !== null
+              ? {
+                  value: formatPercent(summary.roi),
+                  direction: summary.unrealizedGain > 0 ? "up" : summary.unrealizedGain < 0 ? "down" : "flat",
+                }
+              : null
+          }
+          hint={summary.unrealizedGain === null ? "cost basis unknown for one or more holdings" : undefined}
         />
         <StatTile label="ROI" value={formatPercent(summary.roi)} />
       </div>

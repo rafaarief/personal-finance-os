@@ -16,7 +16,9 @@
     "db:migrate": "tsx lib/db/migrate.ts",
     "db:seed": "tsx lib/db/seed.ts",
     "import:accounting": "tsx scripts/import-accounting-calculation.ts",
-    "import:bca-jun-2026": "tsx scripts/import-bca-jun-2026.ts"
+    "import:bca-jun-2026": "tsx scripts/import-bca-jun-2026.ts",
+    "finance:import:june-2026": "tsx scripts/import-june-2026-closing.ts",
+    "finance:import:historical": "tsx scripts/import-historical-wealth-snapshots.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.1",

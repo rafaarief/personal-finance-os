@@ -1,6 +1,7 @@
 import {
-  getWealthSummary,
-  getNetWorthHistory,
+  getWealthSummaryAsOf,
+  getSnapshotChange,
+  getNetWorthHistoryExact,
   getCashflowSummary,
   getMonthlyIncomeExpense,
   getInvestmentSummary,
@@ -12,12 +13,21 @@ export type HealthStatus = "excellent" | "good" | "attention";
 
 export interface FinancialSignals {
   netWorth: number;
-  netWorthYoyChangePct: number | null;
+  latestSnapshotDate: string | null;
+  previousSnapshotDate: string | null;
+  snapshotChangeAmount: number | null;
+  snapshotChangePct: number | null;
   netWorthIsAllTimeHigh: boolean;
+  liquidAssets: number;
   liquidityRatio: number | null;
+  cashPosition: number;
   cashAllocationPct: number | null;
+  investmentValue: number;
   investmentAllocationPct: number | null;
+  businessValue: number;
   businessAllocationPct: number | null;
+  otherValue: number;
+  otherAllocationPct: number | null;
   emergencyFundMonths: number | null;
   currentMonth: string;
   currentMonthIncome: number;
@@ -32,32 +42,39 @@ export interface Highlight {
   text: string;
 }
 
-/** Deterministic — every number here comes straight from the existing aggregate queries, never from the AI. */
+/**
+ * Deterministic — every number here comes straight from the existing
+ * aggregate queries, never from the AI. Headline figures (net worth,
+ * allocations) are computed "as of" the latest snapshot date specifically,
+ * not from assets' free-floating current_value, so an account with no
+ * reported balance for that statement correctly drops out of the totals
+ * instead of silently blending in a stale value from a different date.
+ */
 export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const month = currentMonthString();
   const previousMonth = previousMonthString(month);
 
+  const snapshotChange = await getSnapshotChange();
+  const latestDate = snapshotChange?.latestDate ?? null;
+
   const [wealth, history, cashflow, monthlyTrend, investment] = await Promise.all([
-    getWealthSummary(),
-    getNetWorthHistory(12),
+    latestDate ? getWealthSummaryAsOf(latestDate) : null,
+    getNetWorthHistoryExact(),
     getCashflowSummary(month),
     getMonthlyIncomeExpense(13),
     getInvestmentSummary(),
   ]);
 
-  const netWorth = wealth.netWorth;
-
-  const yearAgoPoint = history.length > 0 ? history[0] : null;
-  const netWorthYoyChangePct =
-    yearAgoPoint && yearAgoPoint.netWorth > 0 ? (netWorth - yearAgoPoint.netWorth) / yearAgoPoint.netWorth : null;
+  const netWorth = wealth?.netWorth ?? 0;
 
   const historicalMax = history.reduce((max, point) => Math.max(max, point.netWorth), 0);
   const netWorthIsAllTimeHigh = netWorth >= historicalMax;
 
-  const liquidityRatio = netWorth > 0 ? wealth.liquidAssets / netWorth : null;
-  const cashAllocationPct = netWorth > 0 ? wealth.cashPosition / netWorth : null;
-  const investmentAllocationPct = netWorth > 0 ? wealth.investmentValue / netWorth : null;
-  const businessAllocationPct = netWorth > 0 ? wealth.businessValue / netWorth : null;
+  const liquidityRatio = wealth && netWorth > 0 ? wealth.liquidAssets / netWorth : null;
+  const cashAllocationPct = wealth && netWorth > 0 ? wealth.cashPosition / netWorth : null;
+  const investmentAllocationPct = wealth && netWorth > 0 ? wealth.investmentValue / netWorth : null;
+  const businessAllocationPct = wealth && netWorth > 0 ? wealth.businessValue / netWorth : null;
+  const otherAllocationPct = wealth && netWorth > 0 ? wealth.otherValue / netWorth : null;
 
   const currentMonthRow = monthlyTrend.find((row) => row.month === month) ?? { income: 0, expense: 0 };
   const previousMonthRow = monthlyTrend.find((row) => row.month === previousMonth);
@@ -83,12 +100,21 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
 
   return {
     netWorth,
-    netWorthYoyChangePct,
+    latestSnapshotDate: latestDate,
+    previousSnapshotDate: snapshotChange?.previousDate ?? null,
+    snapshotChangeAmount: snapshotChange?.changeAmount ?? null,
+    snapshotChangePct: snapshotChange?.changePct ?? null,
     netWorthIsAllTimeHigh,
+    liquidAssets: wealth?.liquidAssets ?? 0,
     liquidityRatio,
+    cashPosition: wealth?.cashPosition ?? 0,
     cashAllocationPct,
+    investmentValue: wealth?.investmentValue ?? 0,
     investmentAllocationPct,
+    businessValue: wealth?.businessValue ?? 0,
     businessAllocationPct,
+    otherValue: wealth?.otherValue ?? 0,
+    otherAllocationPct,
     emergencyFundMonths,
     currentMonth: month,
     currentMonthIncome: currentMonthRow.income,

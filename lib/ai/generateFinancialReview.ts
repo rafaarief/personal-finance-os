@@ -19,8 +19,10 @@ Respond with ONLY a JSON object matching exactly: {"summary": string, "recommend
 function buildFallbackSummary(signals: FinancialSignals): FinancialReviewResponse {
   const parts: string[] = [];
   parts.push(`Net worth is currently ${formatMoney(signals.netWorth)}.`);
-  if (signals.netWorthYoyChangePct !== null) {
-    parts.push(`That's ${formatPercent(signals.netWorthYoyChangePct)} compared to a year ago.`);
+  if (signals.snapshotChangeAmount !== null && signals.previousSnapshotDate) {
+    parts.push(
+      `That's a ${signals.snapshotChangeAmount >= 0 ? "gain" : "drop"} of ${formatMoney(Math.abs(signals.snapshotChangeAmount))} since the ${signals.previousSnapshotDate} snapshot.`
+    );
   }
   if (signals.liquidityRatio !== null) {
     parts.push(`Liquid assets make up ${formatPercent(signals.liquidityRatio)} of total net worth.`);
@@ -35,12 +37,15 @@ async function callKimiForReview(signals: FinancialSignals, highlights: Highligh
   const payload = {
     signals: {
       netWorth: signals.netWorth,
-      netWorthYoyChangePct: signals.netWorthYoyChangePct,
+      snapshotChangeAmount: signals.snapshotChangeAmount,
+      snapshotChangePct: signals.snapshotChangePct,
+      previousSnapshotDate: signals.previousSnapshotDate,
       netWorthIsAllTimeHigh: signals.netWorthIsAllTimeHigh,
       liquidityRatio: signals.liquidityRatio,
       cashAllocationPct: signals.cashAllocationPct,
       investmentAllocationPct: signals.investmentAllocationPct,
       businessAllocationPct: signals.businessAllocationPct,
+      otherAllocationPct: signals.otherAllocationPct,
       emergencyFundMonths: signals.emergencyFundMonths,
       currentMonthIncome: signals.currentMonthIncome,
       currentMonthExpense: signals.currentMonthExpense,

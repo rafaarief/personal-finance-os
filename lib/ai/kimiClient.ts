@@ -13,15 +13,15 @@ export function getKimiModel(): string {
   return process.env.KIMI_MODEL || "kimi-k2.6";
 }
 
-interface KimiChatMessage {
-  role: "system" | "user";
+export interface KimiChatMessage {
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
 export class KimiRequestError extends Error {}
 
 /** Plain chat completion — callers are responsible for parsing/validating the returned text. */
-export async function callKimiChat(messages: KimiChatMessage[]): Promise<string> {
+export async function callKimiChat(messages: KimiChatMessage[], temperature = 1): Promise<string> {
   const apiKey = getKimiApiKey();
   if (!apiKey) {
     throw new KimiRequestError("KIMI_API_KEY is not configured");
@@ -36,7 +36,7 @@ export async function callKimiChat(messages: KimiChatMessage[]): Promise<string>
     body: JSON.stringify({
       model: getKimiModel(),
       messages,
-      temperature: 0.4,
+      temperature,
     }),
   });
 

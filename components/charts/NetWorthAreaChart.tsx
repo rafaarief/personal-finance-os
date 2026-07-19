@@ -1,10 +1,12 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCompactMoney, formatMonthLabel } from "@/lib/format/money";
+import { formatCompactMoney } from "@/lib/format/money";
+import { formatShortDate } from "@/lib/format/date";
 
 interface NetWorthAreaChartProps {
-  data: { month: string; netWorth: number }[];
+  /** One point per real, irregular statement date — never assume evenly-spaced months. */
+  data: { snapshotDate: string; netWorth: number }[];
 }
 
 export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
@@ -20,11 +22,13 @@ export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
           </defs>
           <CartesianGrid stroke="rgb(11 11 11 / 7%)" vertical={false} />
           <XAxis
-            dataKey="month"
-            tickFormatter={formatMonthLabel}
+            dataKey="snapshotDate"
+            tickFormatter={formatShortDate}
             tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
             axisLine={{ stroke: "rgb(11 11 11 / 14%)" }}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={40}
           />
           <YAxis
             tickFormatter={(value: number) => formatCompactMoney(value)}
@@ -34,7 +38,7 @@ export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
             width={72}
           />
           <Tooltip
-            labelFormatter={((month: any) => formatMonthLabel(String(month))) as any}
+            labelFormatter={((date: any) => formatShortDate(String(date))) as any}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={((value: any) => [formatCompactMoney(Number(value)), "Net worth"]) as any}
             contentStyle={{

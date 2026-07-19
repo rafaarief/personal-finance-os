@@ -15,28 +15,20 @@ export interface WealthSummary {
   cashPosition: number;
   investmentValue: number;
   businessValue: number;
+  otherValue: number;
   allocation: { category: string; value: number }[];
 }
 
 const LIQUID_CATEGORIES = new Set(["cash", "investment"]);
 
-export async function getWealthSummary(): Promise<WealthSummary> {
-  const db = getDb();
-  const rows = await db
-    .select({
-      category: schema.assets.category,
-      total: sql<string>`coalesce(sum(${schema.assets.currentValue}), 0)`,
-    })
-    .from(schema.assets)
-    .where(eq(schema.assets.isActive, true))
-    .groupBy(schema.assets.category);
-
+function summarizeByCategory(rows: { category: string; total: string | number }[]): WealthSummary {
   let netWorth = 0;
   let liquidAssets = 0;
   let nonLiquidAssets = 0;
   let cashPosition = 0;
   let investmentValue = 0;
   let businessValue = 0;
+  let otherValue = 0;
   const allocation: { category: string; value: number }[] = [];
 
   for (const row of rows) {
@@ -50,9 +42,132 @@ export async function getWealthSummary(): Promise<WealthSummary> {
     if (row.category === "cash") cashPosition += value;
     if (row.category === "investment") investmentValue += value;
     if (row.category === "business") businessValue += value;
+    if (row.category === "other") otherValue += value;
   }
 
-  return { netWorth, liquidAssets, nonLiquidAssets, cashPosition, investmentValue, businessValue, allocation };
+  return { netWorth, liquidAssets, nonLiquidAssets, cashPosition, investmentValue, businessValue, otherValue, allocation };
+}
+
+/**
+ * "Live" wealth summary — sums each active asset's current_value, whatever it
+ * last happened to be set to. Fine for the Assets list / Cashflow's "ending
+ * cash" (both are inherently "best known value right now" concepts), but NOT
+ * what a "Wealth Dashboard as of [statement date]" should use: an asset with
+ * no snapshot on that date still contributes its last-known value here, which
+ * silently blends data from different actual dates. Use getWealthSummaryAsOf
+ * for anything claiming to represent a specific snapshot date.
+ */
+export async function getWealthSummary(): Promise<WealthSummary> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      category: schema.assets.category,
+      total: sql<string>`coalesce(sum(${schema.assets.currentValue}), 0)`,
+    })
+    .from(schema.assets)
+    .where(eq(schema.assets.isActive, true))
+    .groupBy(schema.assets.category);
+
+  return summarizeByCategory(rows);
+}
+
+/**
+ * Minimum number of distinct assets a date needs a snapshot row for, to count
+ * as a real "as of this date" statement rather than an incidental single-asset
+ * touch (a manual edit in the Asset form, or a bank-account balance recompute
+ * after a transaction import both create a snapshot for just the one asset
+ * involved). Chosen empirically: every genuine historical/closing statement
+ * imported so far covers >=4 assets; every known single-asset artifact covers
+ * <=2. This is a heuristic, not a schema guarantee — a dedicated "statement"
+ * concept distinct from ad-hoc snapshots would be the more robust long-term
+ * fix if a legitimate statement ever reports fewer than this many accounts.
+ */
+const MIN_ASSETS_FOR_STATEMENT_DATE = 3;
+
+/**
+ * Most recent distinct snapshot date that looks like a real statement, and
+ * the one immediately before it. Null if fewer than 1/2 exist.
+ *
+ * Only considers source='import' rows with enough assets to plausibly be a
+ * full statement (see MIN_ASSETS_FOR_STATEMENT_DATE) — never source='manual',
+ * and never a source='import' date that only touched one or two assets (e.g.
+ * a bank-account recompute after a transaction import). Treating either as
+ * "the latest snapshot date" would make every other asset silently vanish
+ * from that date's totals (net worth would collapse to just that touch).
+ */
+export async function getLatestSnapshotDates(): Promise<{ latest: string | null; previous: string | null }> {
+  const db = getDb();
+  const rows = await db.execute<{ snapshot_date: string }>(sql`
+    select snapshot_date from ${schema.assetValueSnapshots}
+    where source = 'import'
+    group by snapshot_date
+    having count(distinct asset_id) >= ${MIN_ASSETS_FOR_STATEMENT_DATE}
+    order by snapshot_date desc limit 2
+  `);
+  return {
+    latest: rows[0]?.snapshot_date ?? null,
+    previous: rows[1]?.snapshot_date ?? null,
+  };
+}
+
+/**
+ * Wealth summary "as of" a specific snapshot date — only counts assets that
+ * actually have a snapshot row on that exact date. This is what makes an
+ * asset with no reported balance for a given statement (e.g. a blank line in
+ * a bank statement) correctly drop out of that date's totals without ever
+ * touching the asset's own current_value.
+ */
+export async function getWealthSummaryAsOf(snapshotDate: string): Promise<WealthSummary> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      category: schema.assets.category,
+      total: sql<string>`coalesce(sum(${schema.assetValueSnapshots.currentValue}), 0)`,
+    })
+    .from(schema.assetValueSnapshots)
+    .innerJoin(schema.assets, eq(schema.assets.id, schema.assetValueSnapshots.assetId))
+    .where(eq(schema.assetValueSnapshots.snapshotDate, snapshotDate))
+    .groupBy(schema.assets.category);
+
+  return summarizeByCategory(rows);
+}
+
+export interface SnapshotChange {
+  latestDate: string;
+  latestTotal: number;
+  previousDate: string | null;
+  previousTotal: number | null;
+  changeAmount: number | null;
+  changePct: number | null;
+}
+
+/**
+ * The change between the two most recent snapshot dates — deliberately NOT a
+ * calendar "monthly" or "YoY" figure, since statement dates in this app are
+ * irregular (see PRD note on snapshot cadence). Callers should label this
+ * "snapshot change" / "period change vs {previousDate}", not "monthly change".
+ */
+export async function getSnapshotChange(): Promise<SnapshotChange | null> {
+  const { latest, previous } = await getLatestSnapshotDates();
+  if (!latest) return null;
+
+  const latestSummary = await getWealthSummaryAsOf(latest);
+  if (!previous) {
+    return { latestDate: latest, latestTotal: latestSummary.netWorth, previousDate: null, previousTotal: null, changeAmount: null, changePct: null };
+  }
+
+  const previousSummary = await getWealthSummaryAsOf(previous);
+  const changeAmount = latestSummary.netWorth - previousSummary.netWorth;
+  const changePct = previousSummary.netWorth !== 0 ? changeAmount / previousSummary.netWorth : null;
+
+  return {
+    latestDate: latest,
+    latestTotal: latestSummary.netWorth,
+    previousDate: previous,
+    previousTotal: previousSummary.netWorth,
+    changeAmount,
+    changePct,
+  };
 }
 
 export interface NetWorthHistoryPoint {
@@ -89,6 +204,35 @@ export async function getNetWorthHistory(monthsBack = 24): Promise<NetWorthHisto
   `);
 
   return rows.map((row) => ({ month: row.month, netWorth: toNumber(row.net_worth) }));
+}
+
+export interface NetWorthHistoryExactPoint {
+  snapshotDate: string; // YYYY-MM-DD
+  netWorth: number;
+}
+
+/**
+ * One point per DISTINCT snapshot date (not month-bucketed) — for charting
+ * historical wealth with real, irregular statement dates instead of
+ * assuming every record is exactly one month apart.
+ *
+ * Same source='import' + MIN_ASSETS_FOR_STATEMENT_DATE filter as
+ * getLatestSnapshotDates — a single-asset touch (manual edit or a bank
+ * recompute) would otherwise show up as a full-net-worth data point using
+ * just that one asset's value, faking a cliff in the chart.
+ */
+export async function getNetWorthHistoryExact(): Promise<NetWorthHistoryExactPoint[]> {
+  const db = getDb();
+  const rows = await db.execute<{ snapshot_date: string; total: string }>(sql`
+    select snapshot_date, coalesce(sum(current_value), 0) as total
+    from ${schema.assetValueSnapshots}
+    where source = 'import'
+    group by snapshot_date
+    having count(distinct asset_id) >= ${MIN_ASSETS_FOR_STATEMENT_DATE}
+    order by snapshot_date
+  `);
+
+  return rows.map((row) => ({ snapshotDate: row.snapshot_date, netWorth: toNumber(row.total) }));
 }
 
 // --- Module 5: Expense & Income Dashboard -----------------------------------
@@ -251,16 +395,24 @@ export async function getBusinessVsPersonalSplit(month: string): Promise<{ busin
 
 // --- Module 6: Investment Dashboard ------------------------------------------
 
+/** Physical/alternative holdings that behave like investments even though they sit in the "other" asset category. */
 const INVESTMENT_SUBCATEGORIES = new Set(["Gold", "Property"]);
 
 export interface InvestmentSummary {
   currentValue: number;
-  costBasis: number;
-  unrealizedGain: number;
+  /** null when cost basis isn't known for at least one holding — never coerced to 0, which would fabricate a gain. */
+  costBasis: number | null;
+  unrealizedGain: number | null;
   roi: number | null;
-  allocation: { name: string; subcategory: string; currentValue: number }[];
+  allocation: { name: string; subcategory: string; currentValue: number; costBasis: number | null }[];
 }
 
+/**
+ * Investment holdings only — business assets (PWN, Baswara, BoothyCall, etc.) are a
+ * separate portfolio and must not be blended into "investment" totals here; the
+ * Investment Dashboard is specifically about the investment-category assets (plus
+ * the Gold/Property carve-out) per product decision, not private-equity-style stakes.
+ */
 export async function getInvestmentSummary(): Promise<InvestmentSummary> {
   const db = getDb();
   const rows = await db
@@ -275,22 +427,27 @@ export async function getInvestmentSummary(): Promise<InvestmentSummary> {
     .where(eq(schema.assets.isActive, true));
 
   const investmentAssets = rows.filter(
-    (row) => row.category === "investment" || row.category === "business" || INVESTMENT_SUBCATEGORIES.has(row.subcategory)
+    (row) => row.category === "investment" || INVESTMENT_SUBCATEGORIES.has(row.subcategory)
   );
 
   let currentValue = 0;
   let costBasis = 0;
+  let costBasisKnownForAll = investmentAssets.length > 0;
+
   const allocation = investmentAssets.map((asset) => {
     const value = toNumber(asset.currentValue);
     currentValue += value;
-    costBasis += toNumber(asset.purchaseValue);
-    return { name: asset.name, subcategory: asset.subcategory, currentValue: value };
+    const assetCostBasis = asset.purchaseValue !== null ? toNumber(asset.purchaseValue) : null;
+    if (assetCostBasis === null) costBasisKnownForAll = false;
+    else costBasis += assetCostBasis;
+    return { name: asset.name, subcategory: asset.subcategory, currentValue: value, costBasis: assetCostBasis };
   });
 
-  const unrealizedGain = currentValue - costBasis;
-  const roi = costBasis > 0 ? unrealizedGain / costBasis : null;
+  const resolvedCostBasis = costBasisKnownForAll ? costBasis : null;
+  const unrealizedGain = resolvedCostBasis !== null ? currentValue - resolvedCostBasis : null;
+  const roi = resolvedCostBasis !== null && resolvedCostBasis > 0 ? unrealizedGain! / resolvedCostBasis : null;
 
-  return { currentValue, costBasis, unrealizedGain, roi, allocation };
+  return { currentValue, costBasis: resolvedCostBasis, unrealizedGain, roi, allocation };
 }
 
 // --- Module 7: Cashflow Dashboard ---------------------------------------------
