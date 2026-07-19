@@ -14,7 +14,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const assetCategoryEnum = pgEnum("asset_category", ["cash", "investment", "business", "other"]);
+export const assetCategoryEnum = pgEnum("asset_category", [
+  "cash",
+  "investment",
+  "business",
+  "other",
+  "receivable",
+  "vehicle",
+]);
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense", "transfer"]);
 export const bankCodeEnum = pgEnum("bank_code", ["bca", "jago", "bni", "mandiri"]);
 export const sourceFileTypeEnum = pgEnum("source_file_type", ["pdf", "csv"]);

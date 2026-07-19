@@ -76,7 +76,7 @@ export default async function DashboardPage() {
         ) : null}
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatTile
           label="Liquid Assets"
           value={formatMoney(signals.liquidAssets)}
@@ -98,9 +98,14 @@ export default async function DashboardPage() {
           hint={signals.businessAllocationPct !== null ? formatPercent(signals.businessAllocationPct) : undefined}
         />
         <StatTile
-          label="Other Value"
-          value={formatMoney(signals.otherValue)}
-          hint={signals.otherAllocationPct !== null ? formatPercent(signals.otherAllocationPct) : undefined}
+          label="Receivables"
+          value={formatMoney(signals.receivableValue)}
+          hint={signals.receivableAllocationPct !== null ? formatPercent(signals.receivableAllocationPct) : undefined}
+        />
+        <StatTile
+          label="Vehicle Value"
+          value={formatMoney(signals.vehicleValue)}
+          hint={signals.vehicleAllocationPct !== null ? formatPercent(signals.vehicleAllocationPct) : undefined}
         />
       </div>
 

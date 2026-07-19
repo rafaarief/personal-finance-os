@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const assetCategorySchema = z.enum(["cash", "investment", "business", "other"]);
+export const assetCategorySchema = z.enum(["cash", "investment", "business", "other", "receivable", "vehicle"]);
 export type AssetCategory = z.infer<typeof assetCategorySchema>;
 
 /** Payload for creating/editing an asset via the Asset Management server actions. */

@@ -15,6 +15,13 @@
       "when": 1784382157920,
       "tag": "0001_glossy_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784471301430,
+      "tag": "0002_complex_gargoyle",
+      "breakpoints": true
     }
   ]
 }

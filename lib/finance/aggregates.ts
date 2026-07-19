@@ -16,6 +16,8 @@ export interface WealthSummary {
   investmentValue: number;
   businessValue: number;
   otherValue: number;
+  receivableValue: number;
+  vehicleValue: number;
   allocation: { category: string; value: number }[];
 }
 
@@ -29,6 +31,8 @@ function summarizeByCategory(rows: { category: string; total: string | number }[
   let investmentValue = 0;
   let businessValue = 0;
   let otherValue = 0;
+  let receivableValue = 0;
+  let vehicleValue = 0;
   const allocation: { category: string; value: number }[] = [];
 
   for (const row of rows) {
@@ -43,9 +47,22 @@ function summarizeByCategory(rows: { category: string; total: string | number }[
     if (row.category === "investment") investmentValue += value;
     if (row.category === "business") businessValue += value;
     if (row.category === "other") otherValue += value;
+    if (row.category === "receivable") receivableValue += value;
+    if (row.category === "vehicle") vehicleValue += value;
   }
 
-  return { netWorth, liquidAssets, nonLiquidAssets, cashPosition, investmentValue, businessValue, otherValue, allocation };
+  return {
+    netWorth,
+    liquidAssets,
+    nonLiquidAssets,
+    cashPosition,
+    investmentValue,
+    businessValue,
+    otherValue,
+    receivableValue,
+    vehicleValue,
+    allocation,
+  };
 }
 
 /**

@@ -28,6 +28,10 @@ export interface FinancialSignals {
   businessAllocationPct: number | null;
   otherValue: number;
   otherAllocationPct: number | null;
+  receivableValue: number;
+  receivableAllocationPct: number | null;
+  vehicleValue: number;
+  vehicleAllocationPct: number | null;
   emergencyFundMonths: number | null;
   currentMonth: string;
   currentMonthIncome: number;
@@ -75,6 +79,8 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const investmentAllocationPct = wealth && netWorth > 0 ? wealth.investmentValue / netWorth : null;
   const businessAllocationPct = wealth && netWorth > 0 ? wealth.businessValue / netWorth : null;
   const otherAllocationPct = wealth && netWorth > 0 ? wealth.otherValue / netWorth : null;
+  const receivableAllocationPct = wealth && netWorth > 0 ? wealth.receivableValue / netWorth : null;
+  const vehicleAllocationPct = wealth && netWorth > 0 ? wealth.vehicleValue / netWorth : null;
 
   const currentMonthRow = monthlyTrend.find((row) => row.month === month) ?? { income: 0, expense: 0 };
   const previousMonthRow = monthlyTrend.find((row) => row.month === previousMonth);
@@ -115,6 +121,10 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     businessAllocationPct,
     otherValue: wealth?.otherValue ?? 0,
     otherAllocationPct,
+    receivableValue: wealth?.receivableValue ?? 0,
+    receivableAllocationPct,
+    vehicleValue: wealth?.vehicleValue ?? 0,
+    vehicleAllocationPct,
     emergencyFundMonths,
     currentMonth: month,
     currentMonthIncome: currentMonthRow.income,

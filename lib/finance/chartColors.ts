@@ -22,6 +22,8 @@ export const ASSET_CATEGORY_COLOR: Record<string, string> = {
   investment: CATEGORICAL_SLOTS.purple,
   business: CATEGORICAL_SLOTS.peach,
   other: CATEGORICAL_SLOTS.rose,
+  receivable: CATEGORICAL_SLOTS.gold,
+  vehicle: CATEGORICAL_SLOTS.blue,
 };
 
 /**

@@ -1,4 +1,4 @@
-export type AssetCategory = "cash" | "investment" | "business" | "other";
+export type AssetCategory = "cash" | "investment" | "business" | "other" | "receivable" | "vehicle";
 
 /**
  * Suggested subcategories per asset category, per PRD section 7 Module 2.
@@ -10,7 +10,9 @@ export const ASSET_SUBCATEGORY_SUGGESTIONS: Record<AssetCategory, string[]> = {
   cash: ["BCA", "Jago", "BNI", "Mandiri", "Cash"],
   investment: ["Stockbit", "Reku", "Bitget", "Bybit", "Pintu", "Pluang"],
   business: ["BoothyCall", "Breadwinner", "PWN", "Analog"],
-  other: ["Gold", "Property", "Vehicle", "Receivable"],
+  other: ["Gold", "Property"],
+  receivable: ["personal_receivable"],
+  vehicle: ["car"],
 };
 
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -18,6 +20,8 @@ export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
   investment: "Investment",
   business: "Business",
   other: "Other",
+  receivable: "Receivables",
+  vehicle: "Vehicle",
 };
 
 export type CategoryKind = "income" | "expense" | "transfer";

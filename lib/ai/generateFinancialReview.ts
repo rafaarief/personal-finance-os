@@ -46,6 +46,8 @@ async function callKimiForReview(signals: FinancialSignals, highlights: Highligh
       investmentAllocationPct: signals.investmentAllocationPct,
       businessAllocationPct: signals.businessAllocationPct,
       otherAllocationPct: signals.otherAllocationPct,
+      receivableAllocationPct: signals.receivableAllocationPct,
+      vehicleAllocationPct: signals.vehicleAllocationPct,
       emergencyFundMonths: signals.emergencyFundMonths,
       currentMonthIncome: signals.currentMonthIncome,
       currentMonthExpense: signals.currentMonthExpense,
