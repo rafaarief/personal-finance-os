@@ -1,0 +1,1 @@
+ALTER TABLE "asset_value_snapshots" ADD COLUMN "capital_contributed" numeric(16, 2);

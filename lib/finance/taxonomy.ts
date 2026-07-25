@@ -17,7 +17,7 @@ export const ASSET_SUBCATEGORY_SUGGESTIONS: Record<AssetCategory, string[]> = {
 
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
   cash: "Cash",
-  investment: "Investment",
+  investment: "Capital Market",
   business: "Business",
   other: "Other",
   receivable: "Receivables",

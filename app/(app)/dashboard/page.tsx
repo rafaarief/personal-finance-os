@@ -1,13 +1,12 @@
 import { getWealthSummaryAsOf, getNetWorthHistoryExact } from "@/lib/finance/aggregates";
 import { computeFinancialSignals, computeHighlights } from "@/lib/finance/insights";
 import { getOrCreateTodaysReview } from "@/lib/ai/generateFinancialReview";
-import { ASSET_CATEGORY_COLOR } from "@/lib/finance/chartColors";
+import { ASSET_CLASS_COLOR, ASSET_CLASS_LABELS } from "@/lib/finance/hierarchy";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
-import { ASSET_CATEGORY_LABELS } from "@/lib/finance/taxonomy";
-import { StatTile } from "@/components/ui/StatTile";
 import { HealthBadge } from "@/components/ui/HealthBadge";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { CategorySummaryCard } from "@/components/ui/CategorySummaryCard";
 import { HighlightsList } from "@/components/HighlightsList";
 import { AIReviewCard } from "@/components/AIReviewCard";
 import { FinanceChat } from "@/components/FinanceChat";
@@ -26,12 +25,20 @@ export default async function DashboardPage() {
     getOrCreateTodaysReview(signals, highlights),
   ]);
 
-  const allocationData = (summary?.allocation ?? [])
+  const otherAssetsTotal = signals.otherValue + signals.receivableValue + signals.vehicleValue;
+  const nonLiquidPct = signals.netWorth > 0 ? signals.nonLiquidAssets / signals.netWorth : null;
+
+  const allocationData = [
+    { assetClass: "CASH" as const, value: signals.cashPosition },
+    { assetClass: "CAPITAL_MARKET" as const, value: signals.investmentValue },
+    { assetClass: "BUSINESS" as const, value: signals.businessValue },
+    { assetClass: "OTHER_ASSET" as const, value: otherAssetsTotal },
+  ]
     .filter((entry) => entry.value !== 0)
     .map((entry) => ({
-      label: ASSET_CATEGORY_LABELS[entry.category as keyof typeof ASSET_CATEGORY_LABELS] ?? entry.category,
+      label: ASSET_CLASS_LABELS[entry.assetClass],
       value: entry.value,
-      color: ASSET_CATEGORY_COLOR[entry.category] ?? "#8a8296",
+      color: ASSET_CLASS_COLOR[entry.assetClass],
     }));
 
   return (
@@ -53,7 +60,7 @@ export default async function DashboardPage() {
 
       <GlassCard>
         <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Net Worth</p>
-        <p className="tabular mt-2 font-(family-name:--font-display) text-3xl leading-tight break-words text-(--color-ink-primary) sm:text-4xl lg:text-5xl">
+        <p className="kpi-figure-lg mt-2 font-(family-name:--font-display) text-(--color-ink-primary)">
           {formatMoney(signals.netWorth)}
         </p>
         {signals.snapshotChangeAmount !== null && signals.previousSnapshotDate ? (
@@ -76,41 +83,32 @@ export default async function DashboardPage() {
         ) : null}
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <StatTile
-          label="Liquid Assets"
-          value={formatMoney(signals.liquidAssets)}
-          hint={signals.liquidityRatio !== null ? `${formatPercent(signals.liquidityRatio)} of net worth` : undefined}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <CategorySummaryCard
+          title="Liquid Assets"
+          total={signals.liquidAssets}
+          percentOfNetWorth={signals.liquidityRatio}
+          breakdown={[
+            { label: "Cash", value: signals.cashPosition, color: ASSET_CLASS_COLOR.CASH },
+            { label: "Capital Market", value: signals.investmentValue, color: ASSET_CLASS_COLOR.CAPITAL_MARKET },
+          ]}
         />
-        <StatTile
-          label="Non-Liquid Assets"
-          value={formatMoney(signals.nonLiquidAssets)}
-          hint={signals.netWorth > 0 ? formatPercent(signals.nonLiquidAssets / signals.netWorth) : undefined}
-        />
-        <StatTile
-          label="Cash Position"
-          value={formatMoney(signals.cashPosition)}
-          hint={signals.cashAllocationPct !== null ? formatPercent(signals.cashAllocationPct) : undefined}
-        />
-        <StatTile
-          label="Investment Value"
-          value={formatMoney(signals.investmentValue)}
-          hint={signals.investmentAllocationPct !== null ? formatPercent(signals.investmentAllocationPct) : undefined}
-        />
-        <StatTile
-          label="Business Value"
-          value={formatMoney(signals.businessValue)}
-          hint={signals.businessAllocationPct !== null ? formatPercent(signals.businessAllocationPct) : undefined}
-        />
-        <StatTile
-          label="Receivables"
-          value={formatMoney(signals.receivableValue)}
-          hint={signals.receivableAllocationPct !== null ? formatPercent(signals.receivableAllocationPct) : undefined}
-        />
-        <StatTile
-          label="Vehicle Value"
-          value={formatMoney(signals.vehicleValue)}
-          hint={signals.vehicleAllocationPct !== null ? formatPercent(signals.vehicleAllocationPct) : undefined}
+        <CategorySummaryCard
+          title="Non-Liquid Assets"
+          total={signals.nonLiquidAssets}
+          percentOfNetWorth={nonLiquidPct}
+          breakdown={[
+            { label: "Business", value: signals.businessValue, color: ASSET_CLASS_COLOR.BUSINESS },
+            {
+              label: "Other Assets",
+              value: otherAssetsTotal,
+              color: ASSET_CLASS_COLOR.OTHER_ASSET,
+              secondary: [
+                { label: "Receivables", value: signals.receivableValue },
+                { label: "Vehicle", value: signals.vehicleValue },
+              ].filter((item) => item.value > 0),
+            },
+          ]}
         />
       </div>
 
@@ -142,6 +140,23 @@ export default async function DashboardPage() {
               </p>
             )}
           </div>
+          {summary && (summary.receivableValue > 0 || summary.vehicleValue > 0) ? (
+            <div className="mt-4 space-y-1 border-t border-(--color-border-hairline) pt-3 text-xs text-(--color-ink-muted)">
+              <p className="tracking-[0.1em] uppercase">Within Other Assets</p>
+              {summary.receivableValue > 0 ? (
+                <div className="flex justify-between">
+                  <span>Receivables</span>
+                  <span className="tabular whitespace-nowrap">{formatMoney(summary.receivableValue)}</span>
+                </div>
+              ) : null}
+              {summary.vehicleValue > 0 ? (
+                <div className="flex justify-between">
+                  <span>Vehicle</span>
+                  <span className="tabular whitespace-nowrap">{formatMoney(summary.vehicleValue)}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </GlassCard>
       </div>
 

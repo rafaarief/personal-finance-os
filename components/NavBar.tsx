@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: "/import", label: "Import" },
   { href: "/transactions", label: "Transactions" },
   { href: "/expenses", label: "Expenses" },
-  { href: "/investments", label: "Investments" },
+  { href: "/investments", label: "Capital Market" },
   { href: "/cashflow", label: "Cashflow" },
   { href: "/settings", label: "Settings" },
 ];

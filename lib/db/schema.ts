@@ -62,6 +62,16 @@ export const assetValueSnapshots = pgTable(
       .references(() => assets.id, { onDelete: "cascade" }),
     snapshotDate: date("snapshot_date").notNull(),
     currentValue: numeric("current_value", { precision: 16, scale: 2 }).notNull(),
+    /**
+     * Cumulative capital contributed (deposits minus withdrawals) as of this
+     * snapshot, for Capital Market accounts. NULL — never 0 — when the cost
+     * basis for this period isn't known, so gain/loss and return% derived
+     * from it stay NULL instead of fabricating a gain from the full current
+     * value. Deposit/withdrawal history isn't tracked yet; this column holds
+     * the running total only, but is additive enough that a future
+     * `capital_flows` table can populate it without another migration.
+     */
+    capitalContributed: numeric("capital_contributed", { precision: 16, scale: 2 }),
     source: snapshotSourceEnum("source").notNull().default("manual"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
