@@ -6,10 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Wealth" },
   { href: "/assets", label: "Assets" },
-  { href: "/import", label: "Import" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/investments", label: "Capital Market" },
+  { href: "/capital-market", label: "Capital Market" },
+  { href: "/business", label: "Business" },
   { href: "/cashflow", label: "Cashflow" },
   { href: "/settings", label: "Settings" },
 ];

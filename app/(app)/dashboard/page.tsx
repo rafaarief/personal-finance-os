@@ -1,4 +1,4 @@
-import { getWealthSummaryAsOf, getNetWorthHistoryExact } from "@/lib/finance/aggregates";
+import { getNetWorthHistoryExact } from "@/lib/finance/aggregates";
 import { computeFinancialSignals, computeHighlights } from "@/lib/finance/insights";
 import { getOrCreateTodaysReview } from "@/lib/ai/generateFinancialReview";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABELS } from "@/lib/finance/hierarchy";
@@ -19,11 +19,7 @@ export default async function DashboardPage() {
   const signals = await computeFinancialSignals();
   const highlights = computeHighlights(signals);
 
-  const [summary, history, review] = await Promise.all([
-    signals.latestSnapshotDate ? getWealthSummaryAsOf(signals.latestSnapshotDate) : null,
-    getNetWorthHistoryExact(),
-    getOrCreateTodaysReview(signals, highlights),
-  ]);
+  const [history, review] = await Promise.all([getNetWorthHistoryExact(), getOrCreateTodaysReview(signals, highlights)]);
 
   const otherAssetsTotal = signals.otherValue + signals.receivableValue + signals.vehicleValue;
   const nonLiquidPct = signals.netWorth > 0 ? signals.nonLiquidAssets / signals.netWorth : null;
@@ -140,19 +136,19 @@ export default async function DashboardPage() {
               </p>
             )}
           </div>
-          {summary && (summary.receivableValue > 0 || summary.vehicleValue > 0) ? (
+          {signals.receivableValue > 0 || signals.vehicleValue > 0 ? (
             <div className="mt-4 space-y-1 border-t border-(--color-border-hairline) pt-3 text-xs text-(--color-ink-muted)">
               <p className="tracking-[0.1em] uppercase">Within Other Assets</p>
-              {summary.receivableValue > 0 ? (
+              {signals.receivableValue > 0 ? (
                 <div className="flex justify-between">
                   <span>Receivables</span>
-                  <span className="tabular whitespace-nowrap">{formatMoney(summary.receivableValue)}</span>
+                  <span className="tabular whitespace-nowrap">{formatMoney(signals.receivableValue)}</span>
                 </div>
               ) : null}
-              {summary.vehicleValue > 0 ? (
+              {signals.vehicleValue > 0 ? (
                 <div className="flex justify-between">
                   <span>Vehicle</span>
-                  <span className="tabular whitespace-nowrap">{formatMoney(summary.vehicleValue)}</span>
+                  <span className="tabular whitespace-nowrap">{formatMoney(signals.vehicleValue)}</span>
                 </div>
               ) : null}
             </div>

@@ -5,15 +5,17 @@ import { formatCompactMoney } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
 import { CATEGORICAL_SLOTS } from "@/lib/finance/chartColors";
 
-interface CapitalVsPortfolioChartProps {
-  /** One point per real statement date. capitalContributed is null wherever cost basis isn't known for that date. */
-  data: { snapshotDate: string; portfolioValue: number; capitalContributed: number | null }[];
+interface ValuationHistoryChartProps {
+  /** One point per recorded snapshot date. capitalContributed is null wherever capital isn't known as of that date. */
+  data: { snapshotDate: string; currentValue: number; capitalContributed: number | null }[];
+  capitalLabel: string;
+  currentValueLabel: string;
 }
 
-const PORTFOLIO_COLOR = CATEGORICAL_SLOTS.purple;
+const CURRENT_VALUE_COLOR = CATEGORICAL_SLOTS.purple;
 const CAPITAL_COLOR = CATEGORICAL_SLOTS.coral;
 
-export function CapitalVsPortfolioChart({ data }: CapitalVsPortfolioChartProps) {
+export function ValuationHistoryChart({ data, capitalLabel, currentValueLabel }: ValuationHistoryChartProps) {
   const hasCapitalData = data.some((point) => point.capitalContributed !== null);
 
   return (
@@ -56,18 +58,18 @@ export function CapitalVsPortfolioChart({ data }: CapitalVsPortfolioChartProps) 
             />
             <Line
               type="monotone"
-              dataKey="portfolioValue"
-              name="Portfolio Value"
-              stroke={PORTFOLIO_COLOR}
+              dataKey="currentValue"
+              name={currentValueLabel}
+              stroke={CURRENT_VALUE_COLOR}
               strokeWidth={2}
-              dot={{ r: 3, fill: PORTFOLIO_COLOR, strokeWidth: 0 }}
+              dot={{ r: 3, fill: CURRENT_VALUE_COLOR, strokeWidth: 0 }}
               connectNulls
             />
             {hasCapitalData ? (
               <Line
                 type="monotone"
                 dataKey="capitalContributed"
-                name="Capital Contributed"
+                name={capitalLabel}
                 stroke={CAPITAL_COLOR}
                 strokeWidth={2}
                 strokeDasharray="5 4"
@@ -80,7 +82,7 @@ export function CapitalVsPortfolioChart({ data }: CapitalVsPortfolioChartProps) 
       </div>
       {!hasCapitalData ? (
         <p className="mt-2 text-xs text-(--color-ink-muted)">
-          Capital contribution history hasn&apos;t been recorded yet — showing portfolio value only.
+          {capitalLabel} history hasn&apos;t been recorded yet — showing {currentValueLabel.toLowerCase()} only.
         </p>
       ) : null}
     </div>

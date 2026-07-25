@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { assetInputSchema } from "@/lib/schemas/asset";
 
@@ -60,6 +60,7 @@ export async function updateAssetValue(assetId: string, formData: FormData) {
 
   const db = getDb();
   const now = new Date();
+  const snapshotDate = now.toISOString().slice(0, 10);
 
   await db
     .update(schema.assets)
@@ -76,12 +77,29 @@ export async function updateAssetValue(assetId: string, formData: FormData) {
     })
     .where(eq(schema.assets.id, assetId));
 
+  // Carry capital/book value forward on a brand-new snapshot row — this form
+  // only ever edits Current Value, so it must never blank out a Capital
+  // Market/Business asset's capital basis the way inserting a bare row would.
+  const [priorCapital] = await db
+    .select({ capitalContributed: schema.assetValueSnapshots.capitalContributed })
+    .from(schema.assetValueSnapshots)
+    .where(
+      and(
+        eq(schema.assetValueSnapshots.assetId, assetId),
+        lte(schema.assetValueSnapshots.snapshotDate, snapshotDate),
+        isNotNull(schema.assetValueSnapshots.capitalContributed)
+      )
+    )
+    .orderBy(desc(schema.assetValueSnapshots.snapshotDate))
+    .limit(1);
+
   await db
     .insert(schema.assetValueSnapshots)
     .values({
       assetId,
-      snapshotDate: now.toISOString().slice(0, 10),
+      snapshotDate,
       currentValue: input.currentValue.toString(),
+      capitalContributed: priorCapital?.capitalContributed ?? null,
       source: "manual",
     })
     .onConflictDoUpdate({
@@ -92,6 +110,8 @@ export async function updateAssetValue(assetId: string, formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/assets");
   revalidatePath(`/assets/${assetId}`);
+  revalidatePath("/capital-market");
+  revalidatePath("/business");
   redirect("/assets");
 }
 

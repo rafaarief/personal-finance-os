@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 
 function toNumber(value: string | number | null | undefined): number {
@@ -285,20 +285,91 @@ export async function getAssetBreakdownAsOf(snapshotDate: string): Promise<Asset
   return rows.map((row) => ({ ...row, currentValue: toNumber(row.currentValue) }));
 }
 
-// --- Module 6a: Capital Market performance ------------------------------------
+// --- Module 6a: Capital Market / Business valuation (per-asset, individually editable) ---
 
-export interface CapitalMarketAccount {
+export interface LatestAssetValue {
   assetId: string;
   name: string;
   subcategory: string;
   currentValue: number;
-  /** Null — never 0 — when this account's cost basis for the period isn't known. */
+  /** Null — never 0 — when this asset's capital/book value isn't known yet. */
   capitalContributed: number | null;
+  snapshotDate: string;
+  notes: string | null;
+  valuationMethod: string | null;
+}
+
+/**
+ * Each active asset in `category`'s OWN most recent snapshot, regardless of
+ * whether other assets in the same category were touched on that date. This
+ * is what makes an individual "Edit Current Value" on e.g. just Stockbit show
+ * up immediately without waiting for a full re-statement of every account —
+ * unlike the Cash section, which still keys off one shared statement date.
+ */
+export async function getLatestAssetValues(category: string): Promise<LatestAssetValue[]> {
+  const db = getDb();
+  const rows = await db.execute<{
+    asset_id: string;
+    name: string;
+    subcategory: string;
+    snapshot_date: string;
+    current_value: string;
+    capital_contributed: string | null;
+    notes: string | null;
+    valuation_method: string | null;
+  }>(sql`
+    select distinct on (s.asset_id)
+      s.asset_id, a.name, a.subcategory, s.snapshot_date, s.current_value, s.capital_contributed, s.notes, s.valuation_method
+    from ${schema.assetValueSnapshots} s
+    join ${schema.assets} a on a.id = s.asset_id
+    where a.category = ${category} and a.is_active = true
+    order by s.asset_id, s.snapshot_date desc, s.created_at desc
+  `);
+
+  // Carry capital forward when the LATEST row itself didn't set it — e.g. an
+  // edit made through the generic Asset form (which only ever touches
+  // current_value) must not blank out capital that a prior snapshot recorded.
+  const carried = await Promise.all(
+    rows.map(async (row) => {
+      if (row.capital_contributed !== null) return row.capital_contributed;
+      const db2 = getDb();
+      const [prior] = await db2
+        .select({ capitalContributed: schema.assetValueSnapshots.capitalContributed })
+        .from(schema.assetValueSnapshots)
+        .where(
+          and(
+            eq(schema.assetValueSnapshots.assetId, row.asset_id),
+            lte(schema.assetValueSnapshots.snapshotDate, row.snapshot_date),
+            isNotNull(schema.assetValueSnapshots.capitalContributed)
+          )
+        )
+        .orderBy(desc(schema.assetValueSnapshots.snapshotDate))
+        .limit(1);
+      return prior?.capitalContributed ?? null;
+    })
+  );
+
+  return rows
+    .map((row, index) => ({
+      assetId: row.asset_id,
+      name: row.name,
+      subcategory: row.subcategory,
+      currentValue: toNumber(row.current_value),
+      capitalContributed: carried[index] !== null ? toNumber(carried[index]!) : null,
+      snapshotDate: row.snapshot_date,
+      notes: row.notes,
+      valuationMethod: row.valuation_method,
+    }))
+    .sort((a, b) => b.currentValue - a.currentValue);
+}
+
+export interface CategoryAccount extends LatestAssetValue {
   gainLoss: number | null;
   returnPct: number | null;
 }
 
-export interface CapitalMarketSummary {
+export interface CategorySummary {
+  /** Most recent snapshot date across all accounts in this category — accounts update independently, so this is a "freshest as of" label, not a shared statement date. */
   asOfDate: string | null;
   currentValue: number;
   /** Null when NO account has known capital yet; sum of only the known accounts when some (not all) do. */
@@ -308,49 +379,24 @@ export interface CapitalMarketSummary {
   returnPct: number | null;
   /** True when some accounts have known capital and others don't — surfaced in the UI as "Partial data". */
   partialData: boolean;
-  accounts: CapitalMarketAccount[];
+  accounts: CategoryAccount[];
 }
 
 /**
- * Capital Market (formerly "Investment") accounts as of the latest statement
- * date, split into capital contributed vs. current position so wealth growth
- * from capital injection is never confused with investment performance (PRD
- * requirement: never infer gain from month-to-month value changes). Capital
- * contribution is only ever read from asset_value_snapshots.capital_contributed
- * — nothing here derives it from current_value deltas.
+ * Capital Market / Business summary: current value vs. capital (contributed /
+ * book value), each read independently per asset so wealth growth from a
+ * fresh capital injection is never confused with valuation performance.
+ * Capital is only ever carried forward from a prior snapshot by
+ * updateAssetCurrentValue — nothing here derives it from current_value deltas.
  */
-export async function getCapitalMarketSummary(): Promise<CapitalMarketSummary> {
-  const { latest } = await getLatestSnapshotDates();
-  if (!latest) {
-    return { asOfDate: null, currentValue: 0, capitalContributed: null, gainLoss: null, returnPct: null, partialData: false, accounts: [] };
-  }
+export async function getCategorySummary(category: string): Promise<CategorySummary> {
+  const rows = await getLatestAssetValues(category);
 
-  const db = getDb();
-  const rows = await db
-    .select({
-      assetId: schema.assets.id,
-      name: schema.assets.name,
-      subcategory: schema.assets.subcategory,
-      currentValue: schema.assetValueSnapshots.currentValue,
-      capitalContributed: schema.assetValueSnapshots.capitalContributed,
-    })
-    .from(schema.assetValueSnapshots)
-    .innerJoin(schema.assets, eq(schema.assets.id, schema.assetValueSnapshots.assetId))
-    .where(
-      and(
-        eq(schema.assetValueSnapshots.snapshotDate, latest),
-        eq(schema.assets.category, "investment"),
-        eq(schema.assets.isActive, true)
-      )
-    )
-    .orderBy(desc(sql`${schema.assetValueSnapshots.currentValue}::numeric`));
-
-  const accounts: CapitalMarketAccount[] = rows.map((row) => {
-    const currentValue = toNumber(row.currentValue);
-    const capitalContributed = row.capitalContributed !== null ? toNumber(row.capitalContributed) : null;
-    const gainLoss = capitalContributed !== null ? currentValue - capitalContributed : null;
-    const returnPct = capitalContributed !== null && capitalContributed > 0 ? (gainLoss! / capitalContributed) * 100 : null;
-    return { assetId: row.assetId, name: row.name, subcategory: row.subcategory, currentValue, capitalContributed, gainLoss, returnPct };
+  const accounts: CategoryAccount[] = rows.map((row) => {
+    const gainLoss = row.capitalContributed !== null ? row.currentValue - row.capitalContributed : null;
+    const returnPct =
+      row.capitalContributed !== null && row.capitalContributed > 0 ? (gainLoss! / row.capitalContributed) * 100 : null;
+    return { ...row, gainLoss, returnPct };
   });
 
   const currentValue = accounts.reduce((sum, a) => sum + a.currentValue, 0);
@@ -363,53 +409,140 @@ export async function getCapitalMarketSummary(): Promise<CapitalMarketSummary> {
   const gainLoss = allKnown ? currentValue - capitalContributed! : null;
   const returnPct = allKnown && capitalContributed! > 0 ? (gainLoss! / capitalContributed!) * 100 : null;
 
-  return { asOfDate: latest, currentValue, capitalContributed, gainLoss, returnPct, partialData, accounts };
+  const asOfDate = accounts.reduce<string | null>(
+    (latest, a) => (latest === null || a.snapshotDate > latest ? a.snapshotDate : latest),
+    null
+  );
+
+  return { asOfDate, currentValue, capitalContributed, gainLoss, returnPct, partialData, accounts };
 }
 
-const MIN_CAPITAL_MARKET_ACCOUNTS_FOR_STATEMENT = 3;
-
-export interface CapitalMarketHistoryPoint {
+export interface CategoryHistoryPoint {
   snapshotDate: string;
-  portfolioValue: number;
-  /** Null for any date where at least one included account's capital contributed is unknown — never partially summed into a misleading line. */
+  currentValue: number;
+  /** Null for any date where at least one included account's capital is unknown as of that date — never partially summed into a misleading line. */
   capitalContributed: number | null;
 }
 
 /**
- * One point per real statement date: total Capital Market current value vs.
- * total capital contributed. The capital line is only ever populated for
- * dates where every included account's capital_contributed is known — per
- * PRD requirement, historical capital is never back-calculated from value
- * deltas.
+ * One point per distinct snapshot date recorded for this category, with each
+ * asset's value forward-filled from its own most recent snapshot at or
+ * before that date (accounts update on their own schedule, not in lockstep
+ * "statements"). This is what makes the Capital/Business vs. Current Value
+ * chart diverge smoothly as individual accounts get edited, instead of
+ * dipping every time only one account has a snapshot on a given day.
  */
-export async function getCapitalMarketHistory(): Promise<CapitalMarketHistoryPoint[]> {
+export async function getCategoryValueHistory(category: string): Promise<CategoryHistoryPoint[]> {
   const db = getDb();
   const rows = await db.execute<{
     snapshot_date: string;
-    portfolio_value: string;
+    current_value: string | null;
     capital_contributed: string | null;
     known_count: string;
     total_count: string;
   }>(sql`
+    with dates as (
+      select distinct s.snapshot_date
+      from ${schema.assetValueSnapshots} s
+      join ${schema.assets} a on a.id = s.asset_id
+      where a.category = ${category}
+    ),
+    active_assets as (
+      select id from ${schema.assets} where category = ${category} and is_active = true
+    ),
+    filled as (
+      select d.snapshot_date, aa.id as asset_id, f.current_value,
+        coalesce(f.capital_contributed, cap.capital_contributed) as capital_contributed
+      from dates d
+      cross join active_assets aa
+      join lateral (
+        select s2.current_value, s2.capital_contributed
+        from ${schema.assetValueSnapshots} s2
+        where s2.asset_id = aa.id and s2.snapshot_date <= d.snapshot_date
+        order by s2.snapshot_date desc
+        limit 1
+      ) f on true
+      left join lateral (
+        select s3.capital_contributed
+        from ${schema.assetValueSnapshots} s3
+        where s3.asset_id = aa.id and s3.snapshot_date <= d.snapshot_date and s3.capital_contributed is not null
+        order by s3.snapshot_date desc
+        limit 1
+      ) cap on true
+    )
     select
-      s.snapshot_date,
-      sum(s.current_value) as portfolio_value,
-      sum(s.capital_contributed) as capital_contributed,
-      count(*) filter (where s.capital_contributed is not null) as known_count,
+      snapshot_date,
+      sum(current_value) as current_value,
+      sum(capital_contributed) as capital_contributed,
+      count(*) filter (where capital_contributed is not null) as known_count,
       count(*) as total_count
-    from ${schema.assetValueSnapshots} s
-    join ${schema.assets} a on a.id = s.asset_id
-    where a.category = 'investment' and s.source = 'import'
-    group by s.snapshot_date
-    having count(distinct s.asset_id) >= ${MIN_CAPITAL_MARKET_ACCOUNTS_FOR_STATEMENT}
-    order by s.snapshot_date
+    from filled
+    group by snapshot_date
+    order by snapshot_date
   `);
 
   return rows.map((row) => ({
     snapshotDate: row.snapshot_date,
-    portfolioValue: toNumber(row.portfolio_value),
+    currentValue: toNumber(row.current_value),
     capitalContributed: row.known_count === row.total_count ? toNumber(row.capital_contributed) : null,
   }));
+}
+
+export const getCapitalMarketSummary = () => getCategorySummary("investment");
+export const getCapitalMarketHistory = () => getCategoryValueHistory("investment");
+export const getBusinessSummary = () => getCategorySummary("business");
+export const getBusinessValueHistory = () => getCategoryValueHistory("business");
+
+export interface NetWorthSummary {
+  netWorth: number;
+  liquidAssets: number;
+  nonLiquidAssets: number;
+  cashPosition: number;
+  capitalMarketValue: number;
+  businessValue: number;
+  otherAssetsValue: number;
+  receivableValue: number;
+  vehicleValue: number;
+  /** Cash still keys off the latest full statement date; null if no statement has ever been imported. */
+  cashAsOfDate: string | null;
+}
+
+/**
+ * Net worth using each asset class's own freshest current value: Cash stays
+ * "as of the latest bank statement" (unreported accounts correctly drop out
+ * rather than reading Rp0), while Capital Market and Business use each
+ * account's own latest edit — so an individual "Edit Current Value" is
+ * reflected in Net Worth immediately, without waiting for a new full
+ * statement. Capital/book value is never substituted for current value here.
+ */
+export async function getNetWorthSummary(): Promise<NetWorthSummary> {
+  const { latest } = await getLatestSnapshotDates();
+  const cashSummary = latest ? await getWealthSummaryAsOf(latest) : null;
+
+  const [capitalMarket, business] = await Promise.all([getCategorySummary("investment"), getCategorySummary("business")]);
+
+  const cashPosition = cashSummary?.cashPosition ?? 0;
+  const capitalMarketValue = capitalMarket.currentValue;
+  const businessValue = business.currentValue;
+  const receivableValue = cashSummary?.receivableValue ?? 0;
+  const vehicleValue = cashSummary?.vehicleValue ?? 0;
+  const otherAssetsValue = (cashSummary?.otherValue ?? 0) + receivableValue + vehicleValue;
+
+  const liquidAssets = cashPosition + capitalMarketValue;
+  const nonLiquidAssets = businessValue + otherAssetsValue;
+
+  return {
+    netWorth: liquidAssets + nonLiquidAssets,
+    liquidAssets,
+    nonLiquidAssets,
+    cashPosition,
+    capitalMarketValue,
+    businessValue,
+    otherAssetsValue,
+    receivableValue,
+    vehicleValue,
+    cashAsOfDate: latest,
+  };
 }
 
 // --- Module 5: Expense & Income Dashboard -----------------------------------
@@ -685,4 +818,65 @@ export async function getCashflowSummary(month: string): Promise<CashflowSummary
     runwayMonths,
     emergencyFundRatio,
   };
+}
+
+export interface CashflowTransactionRow {
+  id: string;
+  transactionDate: string;
+  description: string;
+  counterparty: string | null;
+  bankAccountName: string;
+  moneyIn: number | null;
+  moneyOut: number | null;
+  categoryId: string | null;
+  categoryKey: string | null;
+  categoryLabel: string | null;
+  categoryKind: "income" | "expense" | "transfer" | null;
+  isBusiness: boolean;
+  isInvestment: boolean;
+  isInternalTransfer: boolean;
+}
+
+/** Every transaction in the given month, for the unified Cashflow page's transaction table — replaces the standalone /transactions full-history query with a month-scoped one. */
+export async function getTransactionsForMonth(month: string): Promise<CashflowTransactionRow[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: schema.transactions.id,
+      transactionDate: schema.transactions.transactionDate,
+      description: schema.transactions.description,
+      counterparty: schema.transactions.counterparty,
+      bankAccountName: schema.bankAccounts.accountName,
+      moneyIn: schema.transactions.moneyIn,
+      moneyOut: schema.transactions.moneyOut,
+      categoryId: schema.transactions.categoryId,
+      categoryKey: schema.categories.key,
+      categoryLabel: schema.categories.label,
+      categoryKind: schema.categories.kind,
+      isBusiness: schema.transactions.isBusiness,
+      isInvestment: schema.transactions.isInvestment,
+      isInternalTransfer: schema.transactions.isInternalTransfer,
+    })
+    .from(schema.transactions)
+    .innerJoin(schema.bankAccounts, eq(schema.bankAccounts.id, schema.transactions.bankAccountId))
+    .leftJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
+    .where(sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`)
+    .orderBy(desc(schema.transactions.transactionDate));
+
+  return rows.map((row) => ({
+    ...row,
+    moneyIn: row.moneyIn !== null ? toNumber(row.moneyIn) : null,
+    moneyOut: row.moneyOut !== null ? toNumber(row.moneyOut) : null,
+  }));
+}
+
+/** Every "YYYY-MM" that has at least one transaction, most recent first — populates the Cashflow month selector. */
+export async function getAvailableTransactionMonths(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.execute<{ month: string }>(sql`
+    select distinct to_char(${schema.transactions.transactionDate}, 'YYYY-MM') as month
+    from ${schema.transactions}
+    order by month desc
+  `);
+  return rows.map((row) => row.month);
 }

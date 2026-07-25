@@ -1,7 +1,8 @@
-import type { CapitalMarketSummary, CapitalMarketHistoryPoint } from "@/lib/finance/aggregates";
+import type { CategorySummary, CategoryHistoryPoint } from "@/lib/finance/aggregates";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CapitalVsPortfolioChart } from "@/components/charts/CapitalVsPortfolioChart";
+import { ValuationHistoryChart } from "@/components/charts/ValuationHistoryChart";
+import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
 
 function deltaColor(value: number | null): string {
   if (value === null) return "var(--color-ink-muted)";
@@ -22,12 +23,24 @@ function fmtSignedPct(value: number | null): string {
   return `${sign}${Math.abs(value).toFixed(1)}%`;
 }
 
-interface CapitalMarketSectionProps {
-  summary: CapitalMarketSummary;
-  history: CapitalMarketHistoryPoint[];
+interface ValuationSectionProps {
+  summary: CategorySummary;
+  history: CategoryHistoryPoint[];
+  capitalLabel: string;
+  currentValueLabel: string;
+  gainLabel: string;
+  /** Business only — enables the Valuation Method dropdown in the edit modal. */
+  valuationMethods?: readonly string[];
 }
 
-export function CapitalMarketSection({ summary, history }: CapitalMarketSectionProps) {
+export function ValuationSection({
+  summary,
+  history,
+  capitalLabel,
+  currentValueLabel,
+  gainLabel,
+  valuationMethods,
+}: ValuationSectionProps) {
   const { accounts, currentValue, capitalContributed, gainLoss, returnPct, partialData } = summary;
   const noneKnown = capitalContributed === null;
 
@@ -36,7 +49,7 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
       <GlassCard>
         <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
           <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Total Modal</p>
+            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Total {capitalLabel}</p>
             <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-ink-primary)">
               {capitalContributed !== null ? formatMoney(capitalContributed) : "Not provided"}
             </p>
@@ -48,7 +61,7 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
             </p>
           </div>
           <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Gain / Loss</p>
+            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{gainLabel}</p>
             <p className="kpi-figure mt-1.5 font-(family-name:--font-display)" style={{ color: deltaColor(gainLoss) }}>
               {fmtSigned(gainLoss)}
             </p>
@@ -62,21 +75,23 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
         </div>
         {noneKnown ? (
           <p className="mt-4 text-xs text-(--color-ink-muted)">
-            Capital data incomplete — modal hasn&apos;t been recorded for these accounts yet, so gain/loss isn&apos;t calculated
-            from current value.
+            {capitalLabel} data incomplete — hasn&apos;t been recorded for these accounts yet, so {gainLabel.toLowerCase()} isn&apos;t
+            calculated from current value.
           </p>
         ) : partialData ? (
           <p className="mt-4 text-xs text-(--color-ink-muted)">
-            Partial data — modal is known for some accounts only; total gain/loss isn&apos;t shown to avoid mixing known and
-            unknown cost basis.
+            Partial data — {capitalLabel.toLowerCase()} is known for some accounts only; total {gainLabel.toLowerCase()} isn&apos;t
+            shown to avoid mixing known and unknown cost basis.
           </p>
         ) : null}
       </GlassCard>
 
       <GlassCard>
-        <h3 className="font-(family-name:--font-display) text-lg text-(--color-ink-primary)">Portfolio value vs. capital</h3>
+        <h3 className="font-(family-name:--font-display) text-lg text-(--color-ink-primary)">
+          {currentValueLabel} vs. {capitalLabel}
+        </h3>
         <div className="mt-4">
-          <CapitalVsPortfolioChart data={history} />
+          <ValuationHistoryChart data={history} capitalLabel={capitalLabel} currentValueLabel={currentValueLabel} />
         </div>
       </GlassCard>
 
@@ -84,18 +99,18 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
         {accounts.map((account) => (
           <GlassCard key={account.assetId}>
             <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{account.name}</p>
-            <p className="tabular mt-2 font-(family-name:--font-display) text-xl leading-tight text-(--color-ink-primary)">
+            <p className="tabular mt-2 font-(family-name:--font-display) text-xl leading-tight whitespace-nowrap text-(--color-ink-primary)">
               {formatMoney(account.currentValue)}
             </p>
             <div className="mt-3 space-y-1 text-xs text-(--color-ink-muted)">
               <div className="flex justify-between gap-2">
-                <span>Modal</span>
+                <span>{capitalLabel}</span>
                 <span className="tabular whitespace-nowrap text-(--color-ink-secondary)">
                   {account.capitalContributed !== null ? formatMoney(account.capitalContributed) : "Not provided"}
                 </span>
               </div>
               <div className="flex justify-between gap-2">
-                <span>Gain / Loss</span>
+                <span>{gainLabel}</span>
                 <span className="tabular whitespace-nowrap" style={{ color: deltaColor(account.gainLoss) }}>
                   {fmtSigned(account.gainLoss)}
                 </span>
@@ -107,11 +122,20 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
                 </span>
               </div>
             </div>
+            <EditCurrentValueModal
+              assetId={account.assetId}
+              assetName={account.name}
+              capitalLabel={capitalLabel}
+              currentValueLabel={currentValueLabel}
+              capital={account.capitalContributed}
+              currentValue={account.currentValue}
+              valuationMethods={valuationMethods}
+            />
           </GlassCard>
         ))}
         {accounts.length === 0 ? (
           <GlassCard className="sm:col-span-2 lg:col-span-4">
-            <p className="text-sm text-(--color-ink-muted)">No Capital Market accounts reported yet.</p>
+            <p className="text-sm text-(--color-ink-muted)">No accounts reported yet.</p>
           </GlassCard>
         ) : null}
       </div>
@@ -122,9 +146,9 @@ export function CapitalMarketSection({ summary, history }: CapitalMarketSectionP
             <thead>
               <tr className="border-b border-(--color-border-hairline) text-left text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">
                 <th className="px-5 py-3 font-normal">Account</th>
-                <th className="px-5 py-3 text-right font-normal">Modal</th>
+                <th className="px-5 py-3 text-right font-normal">{capitalLabel}</th>
                 <th className="px-5 py-3 text-right font-normal">Current Position</th>
-                <th className="px-5 py-3 text-right font-normal">Gain/Loss</th>
+                <th className="px-5 py-3 text-right font-normal">{gainLabel}</th>
                 <th className="px-5 py-3 text-right font-normal">Return</th>
                 <th className="px-5 py-3 text-right font-normal">Allocation</th>
               </tr>

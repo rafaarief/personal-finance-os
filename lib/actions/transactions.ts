@@ -23,6 +23,7 @@ export async function updateTransaction(transactionId: string, input: unknown) {
 
   revalidatePath("/transactions");
   revalidatePath("/expenses");
+  revalidatePath("/cashflow");
   revalidatePath("/dashboard");
 }
 
@@ -59,4 +60,5 @@ export async function createManualTransferLink(input: unknown) {
 
   revalidatePath("/transactions");
   revalidatePath("/expenses");
+  revalidatePath("/cashflow");
 }

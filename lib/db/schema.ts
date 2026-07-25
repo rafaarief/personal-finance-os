@@ -72,6 +72,10 @@ export const assetValueSnapshots = pgTable(
      * `capital_flows` table can populate it without another migration.
      */
     capitalContributed: numeric("capital_contributed", { precision: 16, scale: 2 }),
+    /** Free-text context for a manual valuation edit — e.g. why Current Value moved. */
+    notes: text("notes"),
+    /** Business valuations only (Book Value/Cost Basis/Founder Estimate/.../Other) — null for Cash and Capital Market snapshots. */
+    valuationMethod: text("valuation_method"),
     source: snapshotSourceEnum("source").notNull().default("manual"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

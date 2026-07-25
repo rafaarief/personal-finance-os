@@ -1,10 +1,10 @@
 import {
-  getWealthSummaryAsOf,
+  getNetWorthSummary,
   getSnapshotChange,
   getNetWorthHistoryExact,
   getCashflowSummary,
   getMonthlyIncomeExpense,
-  getInvestmentSummary,
+  getCapitalMarketSummary,
 } from "./aggregates";
 import { ALLOCATION_TARGETS, EMERGENCY_FUND_TARGET_MONTHS } from "./targets";
 import { currentMonthString, previousMonthString } from "@/lib/format/date";
@@ -50,10 +50,11 @@ export interface Highlight {
 /**
  * Deterministic — every number here comes straight from the existing
  * aggregate queries, never from the AI. Headline figures (net worth,
- * allocations) are computed "as of" the latest snapshot date specifically,
- * not from assets' free-floating current_value, so an account with no
- * reported balance for that statement correctly drops out of the totals
- * instead of silently blending in a stale value from a different date.
+ * allocations) use each asset class's own freshest current value: Cash stays
+ * "as of the latest bank statement" (an account with no reported balance for
+ * that statement correctly drops out instead of blending in a stale value),
+ * while Capital Market and Business reflect each account's own latest edit —
+ * see getNetWorthSummary.
  */
 export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const month = currentMonthString();
@@ -62,26 +63,26 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const snapshotChange = await getSnapshotChange();
   const latestDate = snapshotChange?.latestDate ?? null;
 
-  const [wealth, history, cashflow, monthlyTrend, investment] = await Promise.all([
-    latestDate ? getWealthSummaryAsOf(latestDate) : null,
+  const [wealth, history, cashflow, monthlyTrend, capitalMarket] = await Promise.all([
+    getNetWorthSummary(),
     getNetWorthHistoryExact(),
     getCashflowSummary(month),
     getMonthlyIncomeExpense(13),
-    getInvestmentSummary(),
+    getCapitalMarketSummary(),
   ]);
 
-  const netWorth = wealth?.netWorth ?? 0;
+  const netWorth = wealth.netWorth;
 
   const historicalMax = history.reduce((max, point) => Math.max(max, point.netWorth), 0);
   const netWorthIsAllTimeHigh = netWorth >= historicalMax;
 
-  const liquidityRatio = wealth && netWorth > 0 ? wealth.liquidAssets / netWorth : null;
-  const cashAllocationPct = wealth && netWorth > 0 ? wealth.cashPosition / netWorth : null;
-  const investmentAllocationPct = wealth && netWorth > 0 ? wealth.investmentValue / netWorth : null;
-  const businessAllocationPct = wealth && netWorth > 0 ? wealth.businessValue / netWorth : null;
-  const otherAllocationPct = wealth && netWorth > 0 ? wealth.otherValue / netWorth : null;
-  const receivableAllocationPct = wealth && netWorth > 0 ? wealth.receivableValue / netWorth : null;
-  const vehicleAllocationPct = wealth && netWorth > 0 ? wealth.vehicleValue / netWorth : null;
+  const liquidityRatio = netWorth > 0 ? wealth.liquidAssets / netWorth : null;
+  const cashAllocationPct = netWorth > 0 ? wealth.cashPosition / netWorth : null;
+  const investmentAllocationPct = netWorth > 0 ? wealth.capitalMarketValue / netWorth : null;
+  const businessAllocationPct = netWorth > 0 ? wealth.businessValue / netWorth : null;
+  const otherAllocationPct = netWorth > 0 ? wealth.otherAssetsValue / netWorth : null;
+  const receivableAllocationPct = netWorth > 0 ? wealth.receivableValue / netWorth : null;
+  const vehicleAllocationPct = netWorth > 0 ? wealth.vehicleValue / netWorth : null;
 
   const currentMonthRow = monthlyTrend.find((row) => row.month === month) ?? { income: 0, expense: 0 };
   const previousMonthRow = monthlyTrend.find((row) => row.month === previousMonth);
@@ -105,6 +106,8 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     healthStatus = "excellent";
   }
 
+  const otherOnlyValue = wealth.otherAssetsValue - wealth.receivableValue - wealth.vehicleValue;
+
   return {
     netWorth,
     latestSnapshotDate: latestDate,
@@ -112,27 +115,27 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     snapshotChangeAmount: snapshotChange?.changeAmount ?? null,
     snapshotChangePct: snapshotChange?.changePct ?? null,
     netWorthIsAllTimeHigh,
-    liquidAssets: wealth?.liquidAssets ?? 0,
+    liquidAssets: wealth.liquidAssets,
     liquidityRatio,
-    nonLiquidAssets: wealth?.nonLiquidAssets ?? 0,
-    cashPosition: wealth?.cashPosition ?? 0,
+    nonLiquidAssets: wealth.nonLiquidAssets,
+    cashPosition: wealth.cashPosition,
     cashAllocationPct,
-    investmentValue: wealth?.investmentValue ?? 0,
+    investmentValue: wealth.capitalMarketValue,
     investmentAllocationPct,
-    businessValue: wealth?.businessValue ?? 0,
+    businessValue: wealth.businessValue,
     businessAllocationPct,
-    otherValue: wealth?.otherValue ?? 0,
+    otherValue: otherOnlyValue,
     otherAllocationPct,
-    receivableValue: wealth?.receivableValue ?? 0,
+    receivableValue: wealth.receivableValue,
     receivableAllocationPct,
-    vehicleValue: wealth?.vehicleValue ?? 0,
+    vehicleValue: wealth.vehicleValue,
     vehicleAllocationPct,
     emergencyFundMonths,
     currentMonth: month,
     currentMonthIncome: currentMonthRow.income,
     currentMonthExpense: currentMonthRow.expense,
     expenseMoMChangePct,
-    investmentGainPct: investment.roi,
+    investmentGainPct: capitalMarket.returnPct !== null ? capitalMarket.returnPct / 100 : null,
     healthStatus,
   };
 }
