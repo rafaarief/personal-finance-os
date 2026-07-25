@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { updateAssetCurrentValue } from "@/lib/actions/valuations";
 import { formatMoney } from "@/lib/format/money";
+import { formatShortDate } from "@/lib/format/date";
+import { SingleValueHistoryChart } from "@/components/charts/SingleValueHistoryChart";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -11,22 +13,29 @@ function todayIso(): string {
 interface EditCurrentValueModalProps {
   assetId: string;
   assetName: string;
-  capitalLabel: string;
   currentValueLabel: string;
-  capital: number | null;
   currentValue: number;
+  /** Omit both when this asset has no capital/cost-basis concept (Cash, Receivables, Vehicle) — the field is hidden entirely rather than shown as "unknown". */
+  capitalLabel?: string;
+  capital?: number | null;
   /** When provided, shows the Valuation Method dropdown — Business only. */
   valuationMethods?: readonly string[];
+  /** Most recent snapshot date for this asset, shown as "Last updated". */
+  lastUpdated?: string | null;
+  /** Full recorded history for this asset, oldest first — renders a small chart when there are at least 2 points. */
+  history?: { snapshotDate: string; currentValue: number }[];
 }
 
 export function EditCurrentValueModal({
   assetId,
   assetName,
-  capitalLabel,
   currentValueLabel,
-  capital,
   currentValue,
+  capitalLabel,
+  capital,
   valuationMethods,
+  lastUpdated,
+  history,
 }: EditCurrentValueModalProps) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(String(currentValue));
@@ -35,6 +44,8 @@ export function EditCurrentValueModal({
   const [method, setMethod] = useState("");
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
+
+  const hasCapital = capitalLabel !== undefined;
 
   function openModal() {
     setValue(String(currentValue));
@@ -63,13 +74,14 @@ export function EditCurrentValueModal({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openModal}
-        className="mt-3 text-xs font-medium text-(--color-cat-purple) hover:underline"
-      >
-        Edit Current Value
-      </button>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button type="button" onClick={openModal} className="text-xs font-medium text-(--color-cat-purple) hover:underline">
+          Edit Current Value
+        </button>
+        {lastUpdated ? (
+          <span className="text-xs whitespace-nowrap text-(--color-ink-muted)">Updated {formatShortDate(lastUpdated)}</span>
+        ) : null}
+      </div>
 
       {open ? (
         <div
@@ -80,15 +92,22 @@ export function EditCurrentValueModal({
             className="glass-card w-full max-w-sm space-y-4 bg-(--color-surface-raised) p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="font-(family-name:--font-display) text-lg text-(--color-ink-primary)">Edit {assetName}</h3>
-
             <div>
-              <label className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">{capitalLabel}</label>
-              <p className="tabular mt-1 whitespace-nowrap text-(--color-ink-secondary)">
-                {capital !== null ? formatMoney(capital) : "Not provided"}{" "}
-                <span className="text-xs text-(--color-ink-muted)">(locked)</span>
-              </p>
+              <h3 className="font-(family-name:--font-display) text-lg text-(--color-ink-primary)">Edit {assetName}</h3>
+              {lastUpdated ? (
+                <p className="mt-0.5 text-xs text-(--color-ink-muted)">Last updated {formatShortDate(lastUpdated)}</p>
+              ) : null}
             </div>
+
+            {hasCapital ? (
+              <div>
+                <label className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">{capitalLabel}</label>
+                <p className="tabular mt-1 whitespace-nowrap text-(--color-ink-secondary)">
+                  {capital !== null && capital !== undefined ? formatMoney(capital) : "Not provided"}{" "}
+                  <span className="text-xs text-(--color-ink-muted)">(locked)</span>
+                </p>
+              </div>
+            ) : null}
 
             <div>
               <label className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase" htmlFor={`value-${assetId}`}>
@@ -151,6 +170,15 @@ export function EditCurrentValueModal({
                 className="mt-1.5 w-full rounded-xl border border-(--color-border-hairline) bg-(--color-surface) px-3 py-2 text-(--color-ink-primary)"
               />
             </div>
+
+            {history && history.length > 1 ? (
+              <div>
+                <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">History</p>
+                <div className="mt-1.5">
+                  <SingleValueHistoryChart data={history} label={currentValueLabel} />
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex justify-end gap-3 pt-1">
               <button

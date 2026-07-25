@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { currentMonthString, lastNMonths } from "@/lib/format/date";
 
@@ -253,39 +253,6 @@ export async function getNetWorthHistoryExact(): Promise<NetWorthHistoryExactPoi
   return rows.map((row) => ({ snapshotDate: row.snapshot_date, netWorth: toNumber(row.total) }));
 }
 
-export interface AssetBreakdownRow {
-  id: string;
-  name: string;
-  category: string;
-  subcategory: string;
-  currentValue: number;
-}
-
-/**
- * Every active asset that has a snapshot on this exact date, one row per
- * asset — the per-account building block for the redesigned Assets page
- * (Cash/Capital Market/Business/Other Assets sections). Same "as of" contract
- * as getWealthSummaryAsOf: an asset with no reported balance for this
- * statement is simply absent, never shown at Rp0.
- */
-export async function getAssetBreakdownAsOf(snapshotDate: string): Promise<AssetBreakdownRow[]> {
-  const db = getDb();
-  const rows = await db
-    .select({
-      id: schema.assets.id,
-      name: schema.assets.name,
-      category: schema.assets.category,
-      subcategory: schema.assets.subcategory,
-      currentValue: schema.assetValueSnapshots.currentValue,
-    })
-    .from(schema.assetValueSnapshots)
-    .innerJoin(schema.assets, eq(schema.assets.id, schema.assetValueSnapshots.assetId))
-    .where(and(eq(schema.assetValueSnapshots.snapshotDate, snapshotDate), eq(schema.assets.isActive, true)))
-    .orderBy(schema.assets.category, schema.assets.name);
-
-  return rows.map((row) => ({ ...row, currentValue: toNumber(row.currentValue) }));
-}
-
 // --- Module 6a: Capital Market / Business valuation (per-asset, individually editable) ---
 
 export interface LatestAssetValue {
@@ -362,6 +329,23 @@ export async function getLatestAssetValues(category: string): Promise<LatestAsse
       valuationMethod: row.valuation_method,
     }))
     .sort((a, b) => b.currentValue - a.currentValue);
+}
+
+export interface AssetValueHistoryPoint {
+  snapshotDate: string;
+  currentValue: number;
+}
+
+/** Every recorded snapshot for one asset, oldest first — the source for the small history chart in the edit modal. Every prior value stays exactly as recorded; editing only ever adds or updates the snapshot for the date being edited. */
+export async function getAssetValueHistory(assetId: string): Promise<AssetValueHistoryPoint[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ snapshotDate: schema.assetValueSnapshots.snapshotDate, currentValue: schema.assetValueSnapshots.currentValue })
+    .from(schema.assetValueSnapshots)
+    .where(eq(schema.assetValueSnapshots.assetId, assetId))
+    .orderBy(schema.assetValueSnapshots.snapshotDate);
+
+  return rows.map((row) => ({ snapshotDate: row.snapshotDate, currentValue: toNumber(row.currentValue) }));
 }
 
 export interface CategoryAccount extends LatestAssetValue {
@@ -504,30 +488,43 @@ export interface NetWorthSummary {
   otherAssetsValue: number;
   receivableValue: number;
   vehicleValue: number;
-  /** Cash still keys off the latest full statement date; null if no statement has ever been imported. */
+  /** Most recent update across all cash accounts — each account now updates independently, so this is a "freshest as of" label, not one shared statement date. */
   cashAsOfDate: string | null;
 }
 
+function sumCurrentValue(rows: LatestAssetValue[]): number {
+  return rows.reduce((sum, row) => sum + row.currentValue, 0);
+}
+
+function latestDateOf(rows: LatestAssetValue[]): string | null {
+  return rows.reduce<string | null>((latest, row) => (latest === null || row.snapshotDate > latest ? row.snapshotDate : latest), null);
+}
+
 /**
- * Net worth using each asset class's own freshest current value: Cash stays
- * "as of the latest bank statement" (unreported accounts correctly drop out
- * rather than reading Rp0), while Capital Market and Business use each
- * account's own latest edit — so an individual "Edit Current Value" is
- * reflected in Net Worth immediately, without waiting for a new full
- * statement. Capital/book value is never substituted for current value here.
+ * Net worth using every asset class's own freshest current value — Cash,
+ * Receivables, and Vehicle now read the same way Capital Market and Business
+ * already did: each account's own latest snapshot, not one shared statement
+ * date. That's what makes an individual "Edit Current Value" on e.g. just
+ * BCA show up in Net Worth immediately, without waiting for a full
+ * re-statement of every other account. Capital/book value is never
+ * substituted for current value here.
  */
 export async function getNetWorthSummary(): Promise<NetWorthSummary> {
-  const { latest } = await getLatestSnapshotDates();
-  const cashSummary = latest ? await getWealthSummaryAsOf(latest) : null;
+  const [cash, capitalMarket, business, receivable, vehicle, other] = await Promise.all([
+    getLatestAssetValues("cash"),
+    getCategorySummary("investment"),
+    getCategorySummary("business"),
+    getLatestAssetValues("receivable"),
+    getLatestAssetValues("vehicle"),
+    getLatestAssetValues("other"),
+  ]);
 
-  const [capitalMarket, business] = await Promise.all([getCategorySummary("investment"), getCategorySummary("business")]);
-
-  const cashPosition = cashSummary?.cashPosition ?? 0;
+  const cashPosition = sumCurrentValue(cash);
   const capitalMarketValue = capitalMarket.currentValue;
   const businessValue = business.currentValue;
-  const receivableValue = cashSummary?.receivableValue ?? 0;
-  const vehicleValue = cashSummary?.vehicleValue ?? 0;
-  const otherAssetsValue = (cashSummary?.otherValue ?? 0) + receivableValue + vehicleValue;
+  const receivableValue = sumCurrentValue(receivable);
+  const vehicleValue = sumCurrentValue(vehicle);
+  const otherAssetsValue = sumCurrentValue(other) + receivableValue + vehicleValue;
 
   const liquidAssets = cashPosition + capitalMarketValue;
   const nonLiquidAssets = businessValue + otherAssetsValue;
@@ -542,7 +539,7 @@ export async function getNetWorthSummary(): Promise<NetWorthSummary> {
     otherAssetsValue,
     receivableValue,
     vehicleValue,
-    cashAsOfDate: latest,
+    cashAsOfDate: latestDateOf(cash),
   };
 }
 
@@ -555,15 +552,20 @@ export interface MonthlyIncomeExpense {
   net: number;
 }
 
+/**
+ * Cash-movement based, not category based — keyed off is_internal_transfer
+ * directly so an un-reviewed/uncategorized import still shows up in the
+ * trend instead of silently reading as Rp0 for that month (see
+ * getCashflowSummary for the same fix and why).
+ */
 export async function getMonthlyIncomeExpense(monthsBack = 12): Promise<MonthlyIncomeExpense[]> {
   const db = getDb();
   const rows = await db.execute<{ month: string; income: string; expense: string }>(sql`
     select
       to_char(date_trunc('month', ${schema.transactions.transactionDate}), 'YYYY-MM') as month,
-      coalesce(sum(${schema.transactions.moneyIn}) filter (where ${schema.categories.kind} = 'income'), 0) as income,
-      coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.categories.kind} = 'expense'), 0) as expense
+      coalesce(sum(${schema.transactions.moneyIn}) filter (where not ${schema.transactions.isInternalTransfer}), 0) as income,
+      coalesce(sum(${schema.transactions.moneyOut}) filter (where not ${schema.transactions.isInternalTransfer}), 0) as expense
     from ${schema.transactions}
-    left join ${schema.categories} on ${schema.categories.id} = ${schema.transactions.categoryId}
     where ${schema.transactions.transactionDate} >= date_trunc('month', now()) - (${monthsBack}::int || ' months')::interval
     group by month
     order by month
@@ -643,10 +645,9 @@ export async function getLargestTransactions(month: string, limit = 10): Promise
       moneyOut: schema.transactions.moneyOut,
     })
     .from(schema.transactions)
-    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
     .where(
       and(
-        ne(schema.categories.kind, "transfer"),
+        eq(schema.transactions.isInternalTransfer, false),
         sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
       )
     )
@@ -661,7 +662,7 @@ export async function getLargestTransactions(month: string, limit = 10): Promise
   }));
 }
 
-/** Counterparty + amount bucket appearing in >=3 of the trailing 6 months = likely recurring. */
+/** Counterparty + amount bucket appearing in >=3 of the trailing 6 months = likely recurring. Cash-movement based (see getCashflowSummary) — not gated on categorization. */
 export async function getRecurringExpenses(): Promise<{ description: string; averageAmount: number; monthsSeen: number }[]> {
   const db = getDb();
   const rows = await db.execute<{ description: string; average_amount: string; months_seen: string }>(sql`
@@ -670,8 +671,8 @@ export async function getRecurringExpenses(): Promise<{ description: string; ave
       avg(${schema.transactions.moneyOut}) as average_amount,
       count(distinct to_char(${schema.transactions.transactionDate}, 'YYYY-MM')) as months_seen
     from ${schema.transactions}
-    join ${schema.categories} on ${schema.categories.id} = ${schema.transactions.categoryId}
-    where ${schema.categories.kind} = 'expense'
+    where not ${schema.transactions.isInternalTransfer}
+      and ${schema.transactions.moneyOut} is not null
       and ${schema.transactions.transactionDate} >= date_trunc('month', now()) - interval '6 months'
     group by lower(trim(${schema.transactions.description}))
     having count(distinct to_char(${schema.transactions.transactionDate}, 'YYYY-MM')) >= 3
@@ -693,10 +694,9 @@ export async function getBusinessVsPersonalSplit(month: string): Promise<{ busin
       personal: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where not ${schema.transactions.isBusiness}), 0)`,
     })
     .from(schema.transactions)
-    .innerJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
     .where(
       and(
-        eq(schema.categories.kind, "expense"),
+        eq(schema.transactions.isInternalTransfer, false),
         sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`
       )
     );
@@ -775,26 +775,58 @@ export interface CashflowSummary {
   emergencyFundRatio: number | null;
 }
 
+/**
+ * Total cash (sum of each active cash asset's own latest snapshot at or
+ * before `dateExclusive`, forward-filled per asset) — the real, known
+ * balance at a point in time, not today's live figure. This is what lets
+ * Opening Cash for a month equal the actual balance the month started with,
+ * instead of a number back-solved from today regardless of which month is
+ * being viewed.
+ */
+async function getCashBalanceBefore(dateExclusive: string): Promise<number> {
+  const db = getDb();
+  const rows = await db.execute<{ total: string }>(sql`
+    select coalesce(sum(f.current_value), 0) as total
+    from (select id from ${schema.assets} where category = 'cash' and is_active = true) a
+    join lateral (
+      select s.current_value
+      from ${schema.assetValueSnapshots} s
+      where s.asset_id = a.id and s.snapshot_date < ${dateExclusive}
+      order by s.snapshot_date desc
+      limit 1
+    ) f on true
+  `);
+  return toNumber(rows[0]?.total);
+}
+
 export async function getCashflowSummary(month: string): Promise<CashflowSummary> {
   const db = getDb();
 
+  // Deliberately keyed off transactions.is_internal_transfer, NOT categories.kind — an
+  // uncategorized transaction (category_id null) still moved real cash and must count
+  // here. Filtering on a LEFT JOINed category's kind instead used to silently exclude
+  // every uncategorized row from Money In/Out (NULL != 'transfer' is NULL, not true,
+  // so the FILTER dropped it) — a whole month of un-reviewed imports would show Rp0.
   const [flows] = await db
     .select({
-      moneyIn: sql<string>`coalesce(sum(${schema.transactions.moneyIn}) filter (where ${schema.categories.kind} != 'transfer'), 0)`,
-      moneyOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.categories.kind} != 'transfer'), 0)`,
+      moneyIn: sql<string>`coalesce(sum(${schema.transactions.moneyIn}) filter (where not ${schema.transactions.isInternalTransfer}), 0)`,
+      moneyOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where not ${schema.transactions.isInternalTransfer}), 0)`,
       investmentOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.transactions.isInvestment}), 0)`,
     })
     .from(schema.transactions)
-    .leftJoin(schema.categories, eq(schema.categories.id, schema.transactions.categoryId))
     .where(sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`);
 
   const moneyIn = toNumber(flows?.moneyIn);
   const moneyOut = toNumber(flows?.moneyOut);
   const investmentOut = toNumber(flows?.investmentOut);
 
-  const wealth = await getWealthSummary();
-  const endingCash = wealth.cashPosition;
-  const beginningCash = endingCash - moneyIn + moneyOut;
+  // Opening Cash(month) = the real balance the month actually started with (chains to
+  // the prior month's real end-of-month balance); Ending Cash(month) = Opening + this
+  // month's P&L — computed forward, never read from today's live balance regardless of
+  // which month is being viewed (that was the bug: every month used to show TODAY's
+  // cash position as "Ending Cash").
+  const beginningCash = await getCashBalanceBefore(`${month}-01`);
+  const endingCash = beginningCash + moneyIn - moneyOut;
 
   const savingRate = moneyIn > 0 ? (moneyIn - moneyOut) / moneyIn : null;
   const investmentRate = moneyIn > 0 ? investmentOut / moneyIn : null;

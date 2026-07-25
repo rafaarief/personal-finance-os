@@ -7,6 +7,13 @@ import type { CashflowTransactionRow } from "@/lib/finance/aggregates";
 
 type TransactionType = "Income" | "Expense" | "Transfer" | "Investment Transfer" | "Business Transfer";
 
+/**
+ * "Transfer" must only ever describe an actual linked internal transfer
+ * (isInternalTransfer) — never a stand-in for "no category assigned yet".
+ * An un-reviewed import (category_id null) still moved real cash, so it's
+ * classified by which side of moneyIn/moneyOut it landed on, same as a
+ * categorized one would be; only falls back to "Transfer" if truly neither.
+ */
 function deriveType(row: CashflowTransactionRow): TransactionType {
   if (row.isInternalTransfer) {
     if (row.isInvestment) return "Investment Transfer";
@@ -15,6 +22,8 @@ function deriveType(row: CashflowTransactionRow): TransactionType {
   }
   if (row.categoryKind === "income") return "Income";
   if (row.categoryKind === "expense") return "Expense";
+  if (row.moneyIn !== null) return "Income";
+  if (row.moneyOut !== null) return "Expense";
   return "Transfer";
 }
 

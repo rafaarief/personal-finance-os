@@ -116,6 +116,7 @@ export function ValuationSection({
               capital={account.capitalContributed}
               currentValue={account.currentValue}
               valuationMethods={valuationMethods}
+              lastUpdated={account.snapshotDate}
             />
           </GlassCard>
         ))}

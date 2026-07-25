@@ -1,20 +1,36 @@
 import Link from "next/link";
 import {
   getNetWorthSummary,
-  getAssetBreakdownAsOf,
   getLatestAssetValues,
-  type AssetBreakdownRow,
+  getAssetValueHistory,
   type LatestAssetValue,
+  type AssetValueHistoryPoint,
 } from "@/lib/finance/aggregates";
 import { ASSET_CLASS_COLOR } from "@/lib/finance/hierarchy";
 import { formatMoney } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CategorySummaryCard } from "@/components/ui/CategorySummaryCard";
+import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
 
 export const dynamic = "force-dynamic";
 
-function AccountCard({ name, subcategory, value }: { name: string; subcategory: string; value: number }) {
+function AccountCard({
+  name,
+  subcategory,
+  value,
+  assetId,
+  lastUpdated,
+  history,
+}: {
+  name: string;
+  subcategory: string;
+  value: number;
+  /** When provided, the card is directly editable (Cash / Receivables / Vehicle) — omit for Capital Market / Business, which are managed on their own pages. */
+  assetId?: string;
+  lastUpdated?: string;
+  history?: AssetValueHistoryPoint[];
+}) {
   return (
     <GlassCard>
       <p className="text-xs text-(--color-ink-muted)">{subcategory}</p>
@@ -22,6 +38,16 @@ function AccountCard({ name, subcategory, value }: { name: string; subcategory: 
       <p className="tabular mt-2 font-(family-name:--font-display) text-xl leading-tight whitespace-nowrap text-(--color-ink-primary)">
         {formatMoney(value)}
       </p>
+      {assetId ? (
+        <EditCurrentValueModal
+          assetId={assetId}
+          assetName={name}
+          currentValueLabel="Current Value"
+          currentValue={value}
+          lastUpdated={lastUpdated}
+          history={history}
+        />
+      ) : null}
     </GlassCard>
   );
 }
@@ -44,18 +70,30 @@ function SectionHeader({ title, total, manageHref }: { title: string; total: num
   );
 }
 
-function byCategory(rows: AssetBreakdownRow[], category: string) {
-  return rows.filter((row) => row.category === category);
-}
-
 function sum(rows: LatestAssetValue[]) {
   return rows.reduce((total, row) => total + row.currentValue, 0);
+}
+
+/** Per-asset history for every row, keyed by assetId — small account counts (cash/other assets), fine to fetch individually. */
+async function historyByAssetId(rows: LatestAssetValue[]): Promise<Map<string, AssetValueHistoryPoint[]>> {
+  const entries = await Promise.all(rows.map(async (row) => [row.assetId, await getAssetValueHistory(row.assetId)] as const));
+  return new Map(entries);
 }
 
 export default async function AssetsPage() {
   const netWorth = await getNetWorthSummary();
 
-  if (!netWorth.cashAsOfDate && netWorth.netWorth === 0) {
+  const [cashAccounts, capitalMarketAccounts, businessAccounts, receivableAccounts, vehicleAccounts, otherAccounts] =
+    await Promise.all([
+      getLatestAssetValues("cash"),
+      getLatestAssetValues("investment"),
+      getLatestAssetValues("business"),
+      getLatestAssetValues("receivable"),
+      getLatestAssetValues("vehicle"),
+      getLatestAssetValues("other"),
+    ]);
+
+  if (netWorth.netWorth === 0 && cashAccounts.length === 0) {
     return (
       <div className="space-y-8">
         <h1 className="font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Assets</h1>
@@ -68,15 +106,9 @@ export default async function AssetsPage() {
     );
   }
 
-  const [cashBreakdown, capitalMarketAccounts, businessAccounts, receivableAccounts, vehicleAccounts] = await Promise.all([
-    netWorth.cashAsOfDate ? getAssetBreakdownAsOf(netWorth.cashAsOfDate) : Promise.resolve<AssetBreakdownRow[]>([]),
-    getLatestAssetValues("investment"),
-    getLatestAssetValues("business"),
-    getLatestAssetValues("receivable"),
-    getLatestAssetValues("vehicle"),
-  ]);
+  const otherAssetsAccounts = [...receivableAccounts, ...vehicleAccounts, ...otherAccounts];
+  const [cashHistory, otherAssetsHistory] = await Promise.all([historyByAssetId(cashAccounts), historyByAssetId(otherAssetsAccounts)]);
 
-  const cashAccounts = byCategory(cashBreakdown, "cash");
   const otherAssetsTotal = netWorth.otherAssetsValue;
   const liquidPct = netWorth.netWorth > 0 ? netWorth.liquidAssets / netWorth.netWorth : null;
   const nonLiquidPct = netWorth.netWorth > 0 ? netWorth.nonLiquidAssets / netWorth.netWorth : null;
@@ -86,7 +118,7 @@ export default async function AssetsPage() {
       <div>
         <h1 className="font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Assets</h1>
         {netWorth.cashAsOfDate ? (
-          <p className="mt-1 text-sm text-(--color-ink-muted)">Cash as of {formatShortDate(netWorth.cashAsOfDate)}</p>
+          <p className="mt-1 text-sm text-(--color-ink-muted)">Cash last updated {formatShortDate(netWorth.cashAsOfDate)}</p>
         ) : null}
       </div>
 
@@ -134,11 +166,19 @@ export default async function AssetsPage() {
           <SectionHeader title="Cash" total={netWorth.cashPosition} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {cashAccounts.map((account) => (
-              <AccountCard key={account.id} name={account.name} subcategory={account.subcategory} value={account.currentValue} />
+              <AccountCard
+                key={account.assetId}
+                assetId={account.assetId}
+                name={account.name}
+                subcategory={account.subcategory}
+                value={account.currentValue}
+                lastUpdated={account.snapshotDate}
+                history={cashHistory.get(account.assetId)}
+              />
             ))}
             {cashAccounts.length === 0 ? (
               <GlassCard className="sm:col-span-2 lg:col-span-4">
-                <p className="text-sm text-(--color-ink-muted)">No cash balances reported for this statement.</p>
+                <p className="text-sm text-(--color-ink-muted)">No cash balances reported yet.</p>
               </GlassCard>
             ) : null}
           </div>
@@ -188,7 +228,15 @@ export default async function AssetsPage() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {receivableAccounts.map((account) => (
-                  <AccountCard key={account.assetId} name={account.name} subcategory={account.subcategory} value={account.currentValue} />
+                  <AccountCard
+                    key={account.assetId}
+                    assetId={account.assetId}
+                    name={account.name}
+                    subcategory={account.subcategory}
+                    value={account.currentValue}
+                    lastUpdated={account.snapshotDate}
+                    history={otherAssetsHistory.get(account.assetId)}
+                  />
                 ))}
               </div>
             </div>
@@ -202,13 +250,43 @@ export default async function AssetsPage() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {vehicleAccounts.map((account) => (
-                  <AccountCard key={account.assetId} name={account.name} subcategory={account.subcategory} value={account.currentValue} />
+                  <AccountCard
+                    key={account.assetId}
+                    assetId={account.assetId}
+                    name={account.name}
+                    subcategory={account.subcategory}
+                    value={account.currentValue}
+                    lastUpdated={account.snapshotDate}
+                    history={otherAssetsHistory.get(account.assetId)}
+                  />
                 ))}
               </div>
             </div>
           ) : null}
 
-          {receivableAccounts.length === 0 && vehicleAccounts.length === 0 ? (
+          {otherAccounts.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Other</h3>
+                <p className="tabular text-sm whitespace-nowrap text-(--color-ink-secondary)">{formatMoney(sum(otherAccounts))}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {otherAccounts.map((account) => (
+                  <AccountCard
+                    key={account.assetId}
+                    assetId={account.assetId}
+                    name={account.name}
+                    subcategory={account.subcategory}
+                    value={account.currentValue}
+                    lastUpdated={account.snapshotDate}
+                    history={otherAssetsHistory.get(account.assetId)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {receivableAccounts.length === 0 && vehicleAccounts.length === 0 && otherAccounts.length === 0 ? (
             <GlassCard>
               <p className="text-sm text-(--color-ink-muted)">No other assets reported yet.</p>
             </GlassCard>
