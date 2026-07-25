@@ -13,8 +13,8 @@ import {
 import { EXPENSE_CATEGORY_COLOR, INCOME_CATEGORY_COLOR, colorForKey } from "@/lib/finance/chartColors";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { currentMonthString } from "@/lib/format/date";
-import { StatTile } from "@/components/ui/StatTile";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { MetricGrid } from "@/components/ui/MetricGrid";
 import { MonthSelector } from "@/components/MonthSelector";
 import { CashflowLedger } from "@/components/CashflowLedger";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
@@ -71,44 +71,22 @@ export default async function CashflowPage({
 
       <GlassCard>
         <h2 className="text-sm tracking-[0.15em] text-(--color-ink-muted) uppercase">Monthly Cashflow Statement</h2>
-        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-          <div>
-            <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Opening Cash</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-ink-primary)">
-              {formatMoney(summary.beginningCash)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Money In</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-delta-positive-strong)">
-              {formatMoney(summary.moneyIn)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Money Out</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-delta-negative-strong)">
-              {formatMoney(summary.moneyOut)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Net Cashflow</p>
-            <p
-              className="kpi-figure mt-1.5 font-(family-name:--font-display)"
-              style={{ color: netCashflow >= 0 ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
-            >
-              {netCashflow >= 0 ? "+" : "-"}
-              {formatMoney(Math.abs(netCashflow))}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.1em] text-(--color-ink-muted) uppercase">Ending Cash</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-ink-primary)">
-              {formatMoney(summary.endingCash)}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 border-t border-(--color-border-hairline) pt-4">
-          <StatTile label="Savings rate" value={formatPercent(summary.savingRate)} />
+        <div className="mt-4">
+          <MetricGrid
+            maxCols={3}
+            items={[
+              { label: "Opening Cash", value: formatMoney(summary.beginningCash) },
+              { label: "Money In", value: formatMoney(summary.moneyIn), color: "var(--color-delta-positive-strong)" },
+              { label: "Money Out", value: formatMoney(summary.moneyOut), color: "var(--color-delta-negative-strong)" },
+              {
+                label: "Net Cashflow",
+                value: `${netCashflow >= 0 ? "+" : "-"}${formatMoney(Math.abs(netCashflow))}`,
+                color: netCashflow >= 0 ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)",
+              },
+              { label: "Ending Cash", value: formatMoney(summary.endingCash) },
+              { label: "Savings Rate", value: formatPercent(summary.savingRate) },
+            ]}
+          />
         </div>
       </GlassCard>
 

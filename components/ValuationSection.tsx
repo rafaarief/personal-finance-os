@@ -1,6 +1,7 @@
 import type { CategorySummary, CategoryHistoryPoint } from "@/lib/finance/aggregates";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { MetricGrid } from "@/components/ui/MetricGrid";
 import { ValuationHistoryChart } from "@/components/charts/ValuationHistoryChart";
 import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
 
@@ -47,32 +48,17 @@ export function ValuationSection({
   return (
     <div className="space-y-6">
       <GlassCard>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-          <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Total {capitalLabel}</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-ink-primary)">
-              {capitalContributed !== null ? formatMoney(capitalContributed) : "Not provided"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Current Position</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display) text-(--color-ink-primary)">
-              {formatMoney(currentValue)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{gainLabel}</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display)" style={{ color: deltaColor(gainLoss) }}>
-              {fmtSigned(gainLoss)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Return</p>
-            <p className="kpi-figure mt-1.5 font-(family-name:--font-display)" style={{ color: deltaColor(returnPct) }}>
-              {fmtSignedPct(returnPct)}
-            </p>
-          </div>
-        </div>
+        <MetricGrid
+          items={[
+            {
+              label: `Total ${capitalLabel}`,
+              value: capitalContributed !== null ? formatMoney(capitalContributed) : "Not provided",
+            },
+            { label: "Current Position", value: formatMoney(currentValue) },
+            { label: gainLabel, value: fmtSigned(gainLoss), color: deltaColor(gainLoss) },
+            { label: "Return", value: fmtSignedPct(returnPct), color: deltaColor(returnPct) },
+          ]}
+        />
         {noneKnown ? (
           <p className="mt-4 text-xs text-(--color-ink-muted)">
             {capitalLabel} data incomplete — hasn&apos;t been recorded for these accounts yet, so {gainLabel.toLowerCase()} isn&apos;t

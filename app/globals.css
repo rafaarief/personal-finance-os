@@ -138,4 +138,18 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
+
+  /* For figures living in a multi-column metric grid (4-per-row summary
+     cards) — a smaller, more conservative clamp than .kpi-figure so 4 values
+     comfortably fit their column at desktop widths, plus overflow/ellipsis as
+     a hard guarantee against ever painting over the next column even in an
+     edge case the clamp didn't anticipate (very long value, unusual zoom). */
+  .metric-figure {
+    font-size: clamp(1.15rem, 1.6vw, 1.75rem);
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
 }

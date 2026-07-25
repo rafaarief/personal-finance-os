@@ -16,3 +16,12 @@ export function previousMonthString(month: string): string {
   date.setUTCMonth(date.getUTCMonth() - 1);
   return date.toISOString().slice(0, 7);
 }
+
+/** `count` months ending at (and including) `month`, most recent first — e.g. lastNMonths("2026-07", 3) -> ["2026-07", "2026-06", "2026-05"]. */
+export function lastNMonths(month: string, count: number): string[] {
+  const months: string[] = [month];
+  for (let i = 1; i < count; i++) {
+    months.push(previousMonthString(months[months.length - 1]));
+  }
+  return months;
+}

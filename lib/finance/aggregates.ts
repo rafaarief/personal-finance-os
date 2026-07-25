@@ -1,5 +1,6 @@
 import { and, desc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
+import { currentMonthString, lastNMonths } from "@/lib/format/date";
 
 function toNumber(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -870,7 +871,15 @@ export async function getTransactionsForMonth(month: string): Promise<CashflowTr
   }));
 }
 
-/** Every "YYYY-MM" that has at least one transaction, most recent first — populates the Cashflow month selector. */
+/**
+ * Options for the Cashflow month selector, most recent first: the trailing 13
+ * months from today (so the current month — and next month, once it starts —
+ * is always pickable even before any transaction has been recorded for it)
+ * unioned with every "YYYY-MM" that actually has a transaction (so older
+ * imported history, e.g. 2023-2025, stays reachable too). Deliberately NOT
+ * just "distinct months with data" — that alone would make an about-to-start
+ * month impossible to select until its first transaction lands.
+ */
 export async function getAvailableTransactionMonths(): Promise<string[]> {
   const db = getDb();
   const rows = await db.execute<{ month: string }>(sql`
@@ -878,5 +887,8 @@ export async function getAvailableTransactionMonths(): Promise<string[]> {
     from ${schema.transactions}
     order by month desc
   `);
-  return rows.map((row) => row.month);
+  const dataMonths = rows.map((row) => row.month);
+  const rollingWindow = lastNMonths(currentMonthString(), 13);
+
+  return Array.from(new Set([...rollingWindow, ...dataMonths])).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }
