@@ -36,6 +36,11 @@ export const importStatusEnum = pgEnum("import_status", [
 export const snapshotSourceEnum = pgEnum("snapshot_source", ["manual", "import"]);
 export const transferMatchMethodEnum = pgEnum("transfer_match_method", ["amount_date_heuristic", "manual"]);
 
+export const userRoleEnum = pgEnum("user_role", ["OWNER", "TRADING_USER"]);
+export const tradeMarketEnum = pgEnum("trade_market", ["INDONESIA", "US", "OTHER"]);
+export const tradeCurrencyEnum = pgEnum("trade_currency", ["IDR", "USD"]);
+export const tradeStatusEnum = pgEnum("trade_status", ["OPEN", "CLOSED"]);
+
 // --- Asset tracking (Module 1 & 2) ---------------------------------------
 
 export const assets = pgTable("assets", {
@@ -207,6 +212,48 @@ export const internalTransferLinks = pgTable(
   },
   (table) => [uniqueIndex("internal_transfer_links_pair_idx").on(table.fromTransactionId, table.toTransactionId)]
 );
+
+// --- Auth (restricted accounts only — the app owner logs in via APP_PASSWORD,
+// not a row here; this table exists so a second, permission-scoped account like
+// the trading user can log in with its own email + hashed password) -----------
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: userRoleEnum("role").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- Trading Recap (Module 8) -------------------------------------------------
+
+export const trades = pgTable("trades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticker: text("ticker").notNull(),
+  market: tradeMarketEnum("market").notNull(),
+  currency: tradeCurrencyEnum("currency").notNull(),
+  marginAmount: numeric("margin_amount", { precision: 18, scale: 2 }).notNull(),
+  buyPrice: numeric("buy_price", { precision: 18, scale: 4 }).notNull(),
+  sellPrice: numeric("sell_price", { precision: 18, scale: 4 }),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }),
+  buyDate: date("buy_date").notNull(),
+  sellDate: date("sell_date"),
+  status: tradeStatusEnum("status").notNull().default("OPEN"),
+  strategy: text("strategy"),
+  notes: text("notes"),
+  /**
+   * Plain identity labels ("OWNER" or the trading user's email), not a foreign
+   * key — the app owner has no row in `users` (still authenticates via
+   * APP_PASSWORD), so there's no id to reference for that side of the audit
+   * trail. This is the whole point of the column: knowing whether a trade was
+   * entered by Narin or by the owner.
+   */
+  createdBy: text("created_by").notNull(),
+  lastEditedBy: text("last_edited_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // --- Relations ---------------------------------------------------------------
 

@@ -36,6 +36,13 @@
       "when": 1784964576793,
       "tag": "0004_fair_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785023630626,
+      "tag": "0005_elite_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

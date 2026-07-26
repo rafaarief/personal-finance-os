@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { assetInputSchema } from "@/lib/schemas/asset";
+import { requireOwner } from "@/lib/auth/currentUser";
 
 export async function createAsset(formData: FormData) {
+  await requireOwner();
   const raw = Object.fromEntries(formData.entries());
   const input = assetInputSchema.parse({
     category: raw.category,
@@ -47,6 +49,7 @@ export async function createAsset(formData: FormData) {
 }
 
 export async function updateAssetValue(assetId: string, formData: FormData) {
+  await requireOwner();
   const raw = Object.fromEntries(formData.entries());
   const input = assetInputSchema.parse({
     category: raw.category,
@@ -116,6 +119,7 @@ export async function updateAssetValue(assetId: string, formData: FormData) {
 }
 
 export async function archiveAsset(assetId: string) {
+  await requireOwner();
   const db = getDb();
   await db.update(schema.assets).set({ isActive: false, updatedAt: new Date() }).where(eq(schema.assets.id, assetId));
   revalidatePath("/dashboard");

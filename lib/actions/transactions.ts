@@ -5,8 +5,10 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { transactionEditSchema, manualTransferLinkSchema } from "@/lib/schemas/transaction";
 import { INTERNAL_TRANSFER_KEY } from "@/lib/finance/taxonomy";
+import { requireOwner } from "@/lib/auth/currentUser";
 
 export async function updateTransaction(transactionId: string, input: unknown) {
+  await requireOwner();
   const edit = transactionEditSchema.parse(input);
   const db = getDb();
 
@@ -29,6 +31,7 @@ export async function updateTransaction(transactionId: string, input: unknown) {
 
 /** Manual internal-transfer confirmation for pairs the heuristic couldn't auto-link (e.g. counterpart imported later). */
 export async function createManualTransferLink(input: unknown) {
+  await requireOwner();
   const { fromTransactionId, toTransactionId } = manualTransferLinkSchema.parse(input);
   const db = getDb();
 

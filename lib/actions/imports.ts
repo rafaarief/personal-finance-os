@@ -6,6 +6,7 @@ import { getDb, schema } from "@/lib/db/client";
 import { findTransferMatches, type TransferCandidate } from "@/lib/statementImport/transferMatch";
 import { recomputeSnapshotForBankAccount } from "@/lib/finance/recomputeSnapshots";
 import { INTERNAL_TRANSFER_KEY, UNCATEGORIZED_KEY } from "@/lib/finance/taxonomy";
+import { requireOwner } from "@/lib/auth/currentUser";
 
 export interface CommitRowInput {
   date: string;
@@ -27,6 +28,7 @@ export interface CommitRowInput {
 
 /** Steps 8-9 of the statement import pipeline: commit reviewed rows, run transfer matching, recompute snapshots. */
 export async function commitStatementImport(importId: string, rows: CommitRowInput[]) {
+  await requireOwner();
   const db = getDb();
 
   const [statementImport] = await db

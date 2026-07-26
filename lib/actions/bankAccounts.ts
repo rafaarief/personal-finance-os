@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireOwner } from "@/lib/auth/currentUser";
 
 const bankAccountInputSchema = z.object({
   bankCode: z.enum(["bca", "jago", "bni", "mandiri"]),
@@ -12,6 +13,7 @@ const bankAccountInputSchema = z.object({
 });
 
 export async function createBankAccount(formData: FormData) {
+  await requireOwner();
   const raw = Object.fromEntries(formData.entries());
   const input = bankAccountInputSchema.parse({
     bankCode: raw.bankCode,

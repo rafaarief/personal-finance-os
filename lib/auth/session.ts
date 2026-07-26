@@ -1,8 +1,14 @@
 export const SESSION_COOKIE_NAME = "pfos_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
-interface SessionPayload {
+export type UserRole = "OWNER" | "TRADING_USER";
+
+export interface SessionPayload {
   issuedAt: number;
+  role: UserRole;
+  /** users.id — only set for TRADING_USER; the owner has no row in `users` (still authenticates via APP_PASSWORD). */
+  userId?: string;
+  email?: string;
 }
 
 function getSessionSecret(): string {
@@ -41,27 +47,30 @@ async function sign(data: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(signature));
 }
 
-export async function createSessionToken(): Promise<string> {
-  const payload: SessionPayload = { issuedAt: Date.now() };
+export async function createSessionToken(claims: Omit<SessionPayload, "issuedAt">): Promise<string> {
+  const payload: SessionPayload = { ...claims, issuedAt: Date.now() };
   const encodedPayload = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
   const signature = await sign(encodedPayload);
   return `${encodedPayload}.${signature}`;
 }
 
-export async function verifySessionToken(token: string | undefined | null): Promise<boolean> {
-  if (!token) return false;
+/** Verifies the HMAC signature and expiry, and returns the embedded claims (role, userId, email) — null if missing/invalid/expired/tampered. Edge-safe (Web Crypto only), used by middleware on every request. */
+export async function verifySessionToken(token: string | undefined | null): Promise<SessionPayload | null> {
+  if (!token) return null;
   const [encodedPayload, signature] = token.split(".");
-  if (!encodedPayload || !signature) return false;
+  if (!encodedPayload || !signature) return null;
 
   const expectedSignature = await sign(encodedPayload);
-  if (expectedSignature !== signature) return false;
+  if (expectedSignature !== signature) return null;
 
   try {
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(encodedPayload))) as SessionPayload;
     const ageMs = Date.now() - payload.issuedAt;
-    return ageMs >= 0 && ageMs <= SESSION_MAX_AGE_SECONDS * 1000;
+    if (ageMs < 0 || ageMs > SESSION_MAX_AGE_SECONDS * 1000) return null;
+    if (payload.role !== "OWNER" && payload.role !== "TRADING_USER") return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }
 

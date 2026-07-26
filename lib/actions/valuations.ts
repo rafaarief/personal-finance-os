@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireOwner } from "@/lib/auth/currentUser";
 
 const updateValueSchema = z.object({
   snapshotDate: z.string().min(1),
@@ -24,6 +25,7 @@ export type UpdateAssetCurrentValueInput = z.input<typeof updateValueSchema>;
  * historical snapshots are never destroyed.
  */
 export async function updateAssetCurrentValue(assetId: string, input: UpdateAssetCurrentValueInput) {
+  await requireOwner();
   const parsed = updateValueSchema.parse(input);
   const db = getDb();
 
