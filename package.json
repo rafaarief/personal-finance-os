@@ -19,7 +19,10 @@
     "import:bca-jun-2026": "tsx scripts/import-bca-jun-2026.ts",
     "finance:import:june-2026": "tsx scripts/import-june-2026-closing.ts",
     "finance:import:historical": "tsx scripts/import-historical-wealth-snapshots.ts",
-    "finance:import:july-2026": "tsx scripts/import-july-2026-financial-position.ts"
+    "finance:import:july-2026": "tsx scripts/import-july-2026-financial-position.ts",
+    "import:bca-jul-2026": "tsx scripts/import-bca-jul-2026.ts",
+    "import:mandiri-jul-2026": "tsx scripts/import-mandiri-jul-2026.ts",
+    "import:jago-jul-2026": "tsx scripts/import-jago-jul-2026.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.1",

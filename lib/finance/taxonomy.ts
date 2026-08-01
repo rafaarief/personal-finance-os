@@ -43,7 +43,9 @@ export const CATEGORY_SEED: CategorySeed[] = [
   { key: "business_income", label: "Business Income", kind: "income" },
   { key: "investment_income", label: "Investment Income / Dividends", kind: "income" },
   { key: "asset_sale", label: "Asset Sale", kind: "income" },
+  { key: "personal_transfer_income", label: "Personal Transfer", kind: "income" },
   { key: "other_income", label: "Other Income", kind: "income" },
+  { key: "adjustment_income", label: "Adjustment Income", kind: "income" },
 
   { key: "groceries", label: "Groceries", kind: "expense" },
   { key: "dining_coffee", label: "Dining & Coffee", kind: "expense" },
@@ -60,10 +62,18 @@ export const CATEGORY_SEED: CategorySeed[] = [
   { key: "education", label: "Education", kind: "expense" },
   { key: "insurance", label: "Insurance", kind: "expense" },
   { key: "business_expense", label: "Business Expense", kind: "expense" },
+  { key: "payroll", label: "Payroll", kind: "expense" },
   { key: "investment_purchase", label: "Investment Purchase", kind: "expense" },
+  { key: "credit_card_payment", label: "Credit Card Payment", kind: "expense" },
   { key: "fees_charges", label: "Fees & Charges", kind: "expense" },
+  { key: "tax", label: "Tax", kind: "expense" },
+  { key: "personal_transfer_expense", label: "Personal Transfer", kind: "expense" },
+  { key: "donation", label: "Donation", kind: "expense" },
+  { key: "lifestyle", label: "Lifestyle", kind: "expense" },
+  { key: "personal_care", label: "Personal Care", kind: "expense" },
   { key: "cash_withdrawal", label: "Cash Withdrawal", kind: "expense" },
   { key: "other_expense", label: "Other Expense", kind: "expense" },
+  { key: "adjustment_expense", label: "Adjustment Expense", kind: "expense" },
   { key: "uncategorized", label: "Uncategorized", kind: "expense" },
 
   { key: "internal_transfer", label: "Internal Transfer", kind: "transfer" },
@@ -77,3 +87,7 @@ export const UNCATEGORIZED_KEY = "uncategorized";
 
 /** Category key reserved for confirmed internal transfers. */
 export const INTERNAL_TRANSFER_KEY = "internal_transfer";
+
+/** Reconciliation entries: the gap between a month's computed Ending Cash (Opening + tracked flows) and the next real statement balance, made explicit rather than left as a silent discrepancy. */
+export const ADJUSTMENT_INCOME_KEY = "adjustment_income";
+export const ADJUSTMENT_EXPENSE_KEY = "adjustment_expense";
