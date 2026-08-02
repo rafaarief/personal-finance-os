@@ -129,23 +129,39 @@ export async function getLatestSnapshotDates(): Promise<{ latest: string | null;
 }
 
 /**
- * Wealth summary "as of" a specific snapshot date — only counts assets that
- * actually have a snapshot row on that exact date. This is what makes an
- * asset with no reported balance for a given statement (e.g. a blank line in
- * a bank statement) correctly drop out of that date's totals without ever
- * touching the asset's own current_value.
+ * Wealth summary "as of" a specific date — each active asset contributes its
+ * own most recent snapshot ON OR BEFORE that date (carry-forward), same
+ * pattern as getCategoryValueHistory's `filled` CTE. An asset with NO
+ * snapshot at or before the date correctly contributes nothing (never
+ * fabricated), but an asset last touched earlier keeps its last known value
+ * instead of silently dropping to zero just because nobody happened to touch
+ * it again on this exact date. Deliberately NOT an exact snapshot_date match
+ * — that earlier approach made a single-account touch (e.g. one bank
+ * recompute after a transaction import) starve out every other asset from
+ * "today's" total the moment its date coincided with 2+ other unrelated
+ * single-account touches (see MIN_ASSETS_FOR_STATEMENT_DATE's own caveat).
  */
 export async function getWealthSummaryAsOf(snapshotDate: string): Promise<WealthSummary> {
   const db = getDb();
-  const rows = await db
-    .select({
-      category: schema.assets.category,
-      total: sql<string>`coalesce(sum(${schema.assetValueSnapshots.currentValue}), 0)`,
-    })
-    .from(schema.assetValueSnapshots)
-    .innerJoin(schema.assets, eq(schema.assets.id, schema.assetValueSnapshots.assetId))
-    .where(eq(schema.assetValueSnapshots.snapshotDate, snapshotDate))
-    .groupBy(schema.assets.category);
+  const rows = await db.execute<{ category: string; total: string }>(sql`
+    with active_assets as (
+      select id, category from ${schema.assets} where is_active = true
+    ),
+    latest_per_asset as (
+      select aa.category, f.current_value
+      from active_assets aa
+      join lateral (
+        select s.current_value
+        from ${schema.assetValueSnapshots} s
+        where s.asset_id = aa.id and s.snapshot_date <= ${snapshotDate}
+        order by s.snapshot_date desc
+        limit 1
+      ) f on true
+    )
+    select category, coalesce(sum(current_value), 0) as total
+    from latest_per_asset
+    group by category
+  `);
 
   return summarizeByCategory(rows);
 }
