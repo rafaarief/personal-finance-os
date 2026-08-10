@@ -898,6 +898,22 @@ export async function getCashAccountsList(): Promise<CashAccountOption[]> {
   return rows;
 }
 
+export interface AssetPickerOption {
+  id: string;
+  name: string;
+  category: string;
+}
+
+/** Every active asset across every category, for the "From / To" pickers on the Record Transfer modal. */
+export async function getAllActiveAssetsForPicker(): Promise<AssetPickerOption[]> {
+  const db = getDb();
+  return db
+    .select({ id: schema.assets.id, name: schema.assets.name, category: schema.assets.category })
+    .from(schema.assets)
+    .where(eq(schema.assets.isActive, true))
+    .orderBy(schema.assets.category, schema.assets.name);
+}
+
 export interface CashReconciliation {
   month: string;
   cashAssetId: string;

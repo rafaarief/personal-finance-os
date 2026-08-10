@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { getCategorySummary, getCategoryValueHistory, getNetWorthSummary, getAssetValueHistory } from "@/lib/finance/aggregates";
+import {
+  getCategorySummary,
+  getCategoryValueHistory,
+  getNetWorthSummary,
+  getAssetValueHistory,
+  getAllActiveAssetsForPicker,
+} from "@/lib/finance/aggregates";
 import { getChangeLogForCategory } from "@/lib/actions/changeLog";
 import { formatMoney, formatPercent } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
@@ -8,15 +14,17 @@ import { MetricGrid } from "@/components/ui/MetricGrid";
 import { AccountCard } from "@/components/AccountCard";
 import { ValuationHistoryChart } from "@/components/charts/ValuationHistoryChart";
 import { ChangeHistoryTable } from "@/components/ChangeHistoryTable";
+import { RecordTransferModal } from "@/components/RecordTransferModal";
 
 export const dynamic = "force-dynamic";
 
 export default async function CashPage() {
-  const [summary, history, netWorth, changeLog] = await Promise.all([
+  const [summary, history, netWorth, changeLog, transferAccounts] = await Promise.all([
     getCategorySummary("cash"),
     getCategoryValueHistory("cash"),
     getNetWorthSummary(),
     getChangeLogForCategory("cash"),
+    getAllActiveAssetsForPicker(),
   ]);
 
   const { accounts, currentValue, asOfDate } = summary;
@@ -34,13 +42,16 @@ export default async function CashPage() {
           <h1 className="mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Cash</h1>
           {asOfDate ? <p className="mt-1 text-sm text-(--color-ink-muted)">Last updated {formatShortDate(asOfDate)}</p> : null}
         </div>
-        <Link
-          href="/assets/new?category=cash"
-          className="rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-(--color-on-accent)"
-          style={{ background: "var(--gradient-hero)" }}
-        >
-          + Add Cash Account
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <RecordTransferModal accounts={transferAccounts} />
+          <Link
+            href="/assets/new?category=cash"
+            className="rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-(--color-on-accent)"
+            style={{ background: "var(--gradient-hero)" }}
+          >
+            + Add Cash Account
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-6">

@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { getBusinessSummary, getBusinessValueHistory } from "@/lib/finance/aggregates";
+import { getBusinessSummary, getBusinessValueHistory, getAllActiveAssetsForPicker } from "@/lib/finance/aggregates";
 import { getChangeLogForCategory } from "@/lib/actions/changeLog";
 import { formatShortDate } from "@/lib/format/date";
 import { BUSINESS_VALUATION_METHODS } from "@/lib/finance/valuationMethods";
 import { ValuationSection } from "@/components/ValuationSection";
 import { ChangeHistoryTable } from "@/components/ChangeHistoryTable";
+import { RecordTransferModal } from "@/components/RecordTransferModal";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessPage() {
-  const [summary, history, changeLog] = await Promise.all([
+  const [summary, history, changeLog, transferAccounts] = await Promise.all([
     getBusinessSummary(),
     getBusinessValueHistory(),
     getChangeLogForCategory("business"),
+    getAllActiveAssetsForPicker(),
   ]);
 
   return (
@@ -25,13 +27,16 @@ export default async function BusinessPage() {
             <p className="mt-1 text-sm text-(--color-ink-muted)">Last updated {formatShortDate(summary.asOfDate)}</p>
           ) : null}
         </div>
-        <Link
-          href="/assets/new?category=business"
-          className="rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-(--color-on-accent)"
-          style={{ background: "var(--gradient-hero)" }}
-        >
-          + Add Business Asset
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <RecordTransferModal accounts={transferAccounts} />
+          <Link
+            href="/assets/new?category=business"
+            className="rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-(--color-on-accent)"
+            style={{ background: "var(--gradient-hero)" }}
+          >
+            + Add Business Asset
+          </Link>
+        </div>
       </div>
 
       <ValuationSection
