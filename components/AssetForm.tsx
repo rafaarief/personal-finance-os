@@ -14,11 +14,13 @@ interface AssetFormProps {
     currency: string;
     notes: string | null;
   };
+  /** Preselects the Category dropdown for a new asset (e.g. arriving from the Cash/Capital Market/Business page's "+ Add" link) — ignored when `defaultValues` is set. */
+  defaultCategory?: AssetCategory;
   submitLabel: string;
 }
 
-export function AssetForm({ action, defaultValues, submitLabel }: AssetFormProps) {
-  const [category, setCategory] = useState<AssetCategory>(defaultValues?.category ?? "cash");
+export function AssetForm({ action, defaultValues, defaultCategory, submitLabel }: AssetFormProps) {
+  const [category, setCategory] = useState<AssetCategory>(defaultValues?.category ?? defaultCategory ?? "cash");
 
   return (
     <form action={action} className="glass-card max-w-lg space-y-5 p-6">

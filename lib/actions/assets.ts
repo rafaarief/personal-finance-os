@@ -64,6 +64,9 @@ export async function createAsset(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/assets");
+  revalidatePath("/cash");
+  revalidatePath("/capital-market");
+  revalidatePath("/business");
   redirect("/assets");
 }
 
@@ -200,5 +203,8 @@ export async function archiveAsset(assetId: string) {
 
   revalidatePath("/dashboard");
   revalidatePath("/assets");
+  revalidatePath("/cash");
+  revalidatePath("/capital-market");
+  revalidatePath("/business");
   redirect("/assets");
 }

@@ -1,5 +1,6 @@
 import { GlassCard } from "@/components/ui/GlassCard";
 import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
+import { ArchiveAssetButton } from "@/components/ArchiveAssetButton";
 import { formatMoney } from "@/lib/format/money";
 import type { AssetValueHistoryPoint } from "@/lib/finance/aggregates";
 
@@ -23,14 +24,19 @@ export function AccountCard({ name, subcategory, value, assetId, lastUpdated, hi
         {formatMoney(value)}
       </p>
       {assetId ? (
-        <EditCurrentValueModal
-          assetId={assetId}
-          assetName={name}
-          currentValueLabel="Current Value"
-          currentValue={value}
-          lastUpdated={lastUpdated}
-          history={history}
-        />
+        <>
+          <EditCurrentValueModal
+            assetId={assetId}
+            assetName={name}
+            currentValueLabel="Current Value"
+            currentValue={value}
+            lastUpdated={lastUpdated}
+            history={history}
+          />
+          <div className="mt-2">
+            <ArchiveAssetButton assetId={assetId} assetName={name} />
+          </div>
+        </>
       ) : null}
     </GlassCard>
   );

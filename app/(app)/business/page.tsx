@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getBusinessSummary, getBusinessValueHistory } from "@/lib/finance/aggregates";
 import { getChangeLogForCategory } from "@/lib/actions/changeLog";
 import { formatShortDate } from "@/lib/format/date";
@@ -16,12 +17,21 @@ export default async function BusinessPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-sm tracking-[0.15em] text-(--color-ink-muted) uppercase">Non-Liquid Assets</p>
-        <h1 className="mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Business Assets</h1>
-        {summary.asOfDate ? (
-          <p className="mt-1 text-sm text-(--color-ink-muted)">Last updated {formatShortDate(summary.asOfDate)}</p>
-        ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm tracking-[0.15em] text-(--color-ink-muted) uppercase">Non-Liquid Assets</p>
+          <h1 className="mt-2 font-(family-name:--font-display) text-3xl text-(--color-ink-primary)">Business Assets</h1>
+          {summary.asOfDate ? (
+            <p className="mt-1 text-sm text-(--color-ink-muted)">Last updated {formatShortDate(summary.asOfDate)}</p>
+          ) : null}
+        </div>
+        <Link
+          href="/assets/new?category=business"
+          className="rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-(--color-on-accent)"
+          style={{ background: "var(--gradient-hero)" }}
+        >
+          + Add Business Asset
+        </Link>
       </div>
 
       <ValuationSection

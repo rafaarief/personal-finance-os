@@ -4,6 +4,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { MetricGrid } from "@/components/ui/MetricGrid";
 import { ValuationHistoryChart } from "@/components/charts/ValuationHistoryChart";
 import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
+import { ArchiveAssetButton } from "@/components/ArchiveAssetButton";
 
 function deltaColor(value: number | null): string {
   if (value === null) return "var(--color-ink-muted)";
@@ -118,6 +119,9 @@ export function ValuationSection({
               valuationMethods={valuationMethods}
               lastUpdated={account.snapshotDate}
             />
+            <div className="mt-2">
+              <ArchiveAssetButton assetId={account.assetId} assetName={account.name} />
+            </div>
           </GlassCard>
         ))}
         {accounts.length === 0 ? (
