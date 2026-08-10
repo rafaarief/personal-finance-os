@@ -10,12 +10,14 @@ interface ValuationHistoryChartProps {
   data: { snapshotDate: string; currentValue: number; capitalContributed: number | null }[];
   capitalLabel: string;
   currentValueLabel: string;
+  /** Cash has no capital/cost-basis concept at all — set false to skip the "not recorded yet" note that otherwise implies one is expected. */
+  showCapitalNote?: boolean;
 }
 
 const CURRENT_VALUE_COLOR = CATEGORICAL_SLOTS.purple;
 const CAPITAL_COLOR = CATEGORICAL_SLOTS.coral;
 
-export function ValuationHistoryChart({ data, capitalLabel, currentValueLabel }: ValuationHistoryChartProps) {
+export function ValuationHistoryChart({ data, capitalLabel, currentValueLabel, showCapitalNote = true }: ValuationHistoryChartProps) {
   const hasCapitalData = data.some((point) => point.capitalContributed !== null);
 
   return (
@@ -80,7 +82,7 @@ export function ValuationHistoryChart({ data, capitalLabel, currentValueLabel }:
           </LineChart>
         </ResponsiveContainer>
       </div>
-      {!hasCapitalData ? (
+      {!hasCapitalData && showCapitalNote ? (
         <p className="mt-2 text-xs text-(--color-ink-muted)">
           {capitalLabel} history hasn&apos;t been recorded yet — showing {currentValueLabel.toLowerCase()} only.
         </p>

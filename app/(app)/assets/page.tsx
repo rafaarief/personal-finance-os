@@ -11,46 +11,9 @@ import { formatMoney } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CategorySummaryCard } from "@/components/ui/CategorySummaryCard";
-import { EditCurrentValueModal } from "@/components/EditCurrentValueModal";
+import { AccountCard } from "@/components/AccountCard";
 
 export const dynamic = "force-dynamic";
-
-function AccountCard({
-  name,
-  subcategory,
-  value,
-  assetId,
-  lastUpdated,
-  history,
-}: {
-  name: string;
-  subcategory: string;
-  value: number;
-  /** When provided, the card is directly editable (Cash / Receivables / Vehicle) — omit for Capital Market / Business, which are managed on their own pages. */
-  assetId?: string;
-  lastUpdated?: string;
-  history?: AssetValueHistoryPoint[];
-}) {
-  return (
-    <GlassCard>
-      <p className="text-xs text-(--color-ink-muted)">{subcategory}</p>
-      <p className="mt-1 text-base text-(--color-ink-primary)">{name}</p>
-      <p className="tabular mt-2 font-(family-name:--font-display) text-xl leading-tight whitespace-nowrap text-(--color-ink-primary)">
-        {formatMoney(value)}
-      </p>
-      {assetId ? (
-        <EditCurrentValueModal
-          assetId={assetId}
-          assetName={name}
-          currentValueLabel="Current Value"
-          currentValue={value}
-          lastUpdated={lastUpdated}
-          history={history}
-        />
-      ) : null}
-    </GlassCard>
-  );
-}
 
 function SectionHeader({ title, total, manageHref }: { title: string; total: number; manageHref?: string }) {
   return (
@@ -163,7 +126,7 @@ export default async function AssetsPage() {
         <h2 className="font-(family-name:--font-display) text-2xl text-(--color-ink-primary)">Liquid Assets</h2>
 
         <div className="space-y-3">
-          <SectionHeader title="Cash" total={netWorth.cashPosition} />
+          <SectionHeader title="Cash" total={netWorth.cashPosition} manageHref="/cash" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {cashAccounts.map((account) => (
               <AccountCard

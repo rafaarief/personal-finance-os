@@ -7,6 +7,7 @@ import type { UserRole } from "@/lib/auth/session";
 const OWNER_NAV_ITEMS = [
   { href: "/dashboard", label: "Wealth" },
   { href: "/assets", label: "Assets" },
+  { href: "/cash", label: "Cash" },
   { href: "/capital-market", label: "Capital Market" },
   { href: "/business", label: "Business" },
   { href: "/cashflow", label: "Cashflow" },
