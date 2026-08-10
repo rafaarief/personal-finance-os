@@ -43,6 +43,13 @@
       "when": 1785023630626,
       "tag": "0005_elite_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786353506391,
+      "tag": "0006_yummy_meltdown",
+      "breakpoints": true
     }
   ]
 }

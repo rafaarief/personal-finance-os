@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
-import { requireOwner } from "@/lib/auth/currentUser";
+import { requireOwner, actorLabel } from "@/lib/auth/currentUser";
+import { recordChange, diffFields } from "@/lib/actions/changeLog";
 
 const updateValueSchema = z.object({
   snapshotDate: z.string().min(1),
@@ -25,9 +26,25 @@ export type UpdateAssetCurrentValueInput = z.input<typeof updateValueSchema>;
  * historical snapshots are never destroyed.
  */
 export async function updateAssetCurrentValue(assetId: string, input: UpdateAssetCurrentValueInput) {
-  await requireOwner();
+  const session = await requireOwner();
   const parsed = updateValueSchema.parse(input);
   const db = getDb();
+
+  const [assetRow] = await db
+    .select({ name: schema.assets.name, category: schema.assets.category })
+    .from(schema.assets)
+    .where(eq(schema.assets.id, assetId))
+    .limit(1);
+
+  const [existingSnapshot] = await db
+    .select({
+      currentValue: schema.assetValueSnapshots.currentValue,
+      notes: schema.assetValueSnapshots.notes,
+      valuationMethod: schema.assetValueSnapshots.valuationMethod,
+    })
+    .from(schema.assetValueSnapshots)
+    .where(and(eq(schema.assetValueSnapshots.assetId, assetId), eq(schema.assetValueSnapshots.snapshotDate, parsed.snapshotDate)))
+    .limit(1);
 
   const [priorCapital] = await db
     .select({ capitalContributed: schema.assetValueSnapshots.capitalContributed })
@@ -77,8 +94,33 @@ export async function updateAssetCurrentValue(assetId: string, input: UpdateAsse
       },
     });
 
+  const changes = diffFields(
+    {
+      currentValue: existingSnapshot?.currentValue ?? null,
+      notes: existingSnapshot?.notes ?? null,
+      valuationMethod: existingSnapshot?.valuationMethod ?? null,
+    },
+    {
+      currentValue: parsed.currentValue.toString(),
+      notes: parsed.notes ?? null,
+      valuationMethod: parsed.valuationMethod ?? null,
+    }
+  );
+  if (Object.keys(changes).length > 0) {
+    await recordChange({
+      entityType: "asset",
+      entityId: assetId,
+      category: assetRow?.category ?? null,
+      action: existingSnapshot ? "update" : "create",
+      changes,
+      label: assetRow?.name ?? "Unknown asset",
+      changedBy: actorLabel(session),
+    });
+  }
+
   revalidatePath("/capital-market");
   revalidatePath("/business");
   revalidatePath("/assets");
+  revalidatePath("/cash");
   revalidatePath("/dashboard");
 }

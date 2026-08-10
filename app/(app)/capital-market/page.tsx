@@ -1,11 +1,17 @@
 import { getCapitalMarketSummary, getCapitalMarketHistory } from "@/lib/finance/aggregates";
+import { getChangeLogForCategory } from "@/lib/actions/changeLog";
 import { formatShortDate } from "@/lib/format/date";
 import { ValuationSection } from "@/components/ValuationSection";
+import { ChangeHistoryTable } from "@/components/ChangeHistoryTable";
 
 export const dynamic = "force-dynamic";
 
 export default async function CapitalMarketPage() {
-  const [summary, history] = await Promise.all([getCapitalMarketSummary(), getCapitalMarketHistory()]);
+  const [summary, history, changeLog] = await Promise.all([
+    getCapitalMarketSummary(),
+    getCapitalMarketHistory(),
+    getChangeLogForCategory("investment"),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -18,6 +24,8 @@ export default async function CapitalMarketPage() {
       </div>
 
       <ValuationSection summary={summary} history={history} capitalLabel="Capital" currentValueLabel="Current Value" gainLabel="Gain / Loss" />
+
+      <ChangeHistoryTable entries={changeLog} />
     </div>
   );
 }

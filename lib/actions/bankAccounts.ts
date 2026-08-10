@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
-import { requireOwner } from "@/lib/auth/currentUser";
+import { requireOwner, actorLabel } from "@/lib/auth/currentUser";
+import { recordChange, createdFields } from "@/lib/actions/changeLog";
 
 const bankAccountInputSchema = z.object({
   bankCode: z.enum(["bca", "jago", "bni", "mandiri"]),
@@ -13,7 +14,7 @@ const bankAccountInputSchema = z.object({
 });
 
 export async function createBankAccount(formData: FormData) {
-  await requireOwner();
+  const session = await requireOwner();
   const raw = Object.fromEntries(formData.entries());
   const input = bankAccountInputSchema.parse({
     bankCode: raw.bankCode,
@@ -23,7 +24,16 @@ export async function createBankAccount(formData: FormData) {
   });
 
   const db = getDb();
-  await db.insert(schema.bankAccounts).values(input);
+  const [created] = await db.insert(schema.bankAccounts).values(input).returning({ id: schema.bankAccounts.id });
+
+  await recordChange({
+    entityType: "bank_account",
+    entityId: created.id,
+    action: "create",
+    changes: createdFields(input),
+    label: input.accountName,
+    changedBy: actorLabel(session),
+  });
 
   revalidatePath("/settings");
   revalidatePath("/import");

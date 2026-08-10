@@ -5,6 +5,12 @@ export function formatShortDate(isoDate: string): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** ISO timestamp -> "1 Jul 2026, 14:32", for change-log rows where same-day edits need to stay distinguishable. */
+export function formatDateTime(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  return date.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 export function currentMonthString(): string {
   return new Date().toISOString().slice(0, 7);
 }

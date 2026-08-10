@@ -1,12 +1,18 @@
 import { getBusinessSummary, getBusinessValueHistory } from "@/lib/finance/aggregates";
+import { getChangeLogForCategory } from "@/lib/actions/changeLog";
 import { formatShortDate } from "@/lib/format/date";
 import { BUSINESS_VALUATION_METHODS } from "@/lib/finance/valuationMethods";
 import { ValuationSection } from "@/components/ValuationSection";
+import { ChangeHistoryTable } from "@/components/ChangeHistoryTable";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessPage() {
-  const [summary, history] = await Promise.all([getBusinessSummary(), getBusinessValueHistory()]);
+  const [summary, history, changeLog] = await Promise.all([
+    getBusinessSummary(),
+    getBusinessValueHistory(),
+    getChangeLogForCategory("business"),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -26,6 +32,8 @@ export default async function BusinessPage() {
         gainLabel="Value Gain / Loss"
         valuationMethods={BUSINESS_VALUATION_METHODS}
       />
+
+      <ChangeHistoryTable entries={changeLog} />
     </div>
   );
 }

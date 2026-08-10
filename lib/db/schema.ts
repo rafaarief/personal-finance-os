@@ -36,6 +36,9 @@ export const importStatusEnum = pgEnum("import_status", [
 export const snapshotSourceEnum = pgEnum("snapshot_source", ["manual", "import"]);
 export const transferMatchMethodEnum = pgEnum("transfer_match_method", ["amount_date_heuristic", "manual"]);
 
+export const changeEntityEnum = pgEnum("change_entity", ["asset", "transaction", "trade", "bank_account", "cash_adjustment"]);
+export const changeActionEnum = pgEnum("change_action", ["create", "update", "delete"]);
+
 export const userRoleEnum = pgEnum("user_role", ["OWNER", "TRADING_USER"]);
 export const tradeMarketEnum = pgEnum("trade_market", ["INDONESIA", "US", "OTHER"]);
 export const tradeCurrencyEnum = pgEnum("trade_currency", ["IDR", "USD"]);
@@ -254,6 +257,39 @@ export const trades = pgTable("trades", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// --- Change History (audit trail) --------------------------------------------
+
+/**
+ * Generic audit trail across every money-touching mutation (assets,
+ * transactions, trades, bank accounts, cash adjustments) — no FK to any one
+ * entity table since entityId can point at rows in several different tables
+ * and a row must survive the record it describes being deleted. `changes` is
+ * field-level `{field: {before, after}}`, only for fields that actually
+ * differ; `label` is a human-readable snapshot of the record's identity at
+ * the time (asset name, transaction description, trade ticker) so the log
+ * still reads clearly after the record itself is renamed or gone.
+ */
+export const changeLogs = pgTable(
+  "change_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entityType: changeEntityEnum("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    /** Denormalized asset category ("cash"/"investment"/"business"/...) so a category page's History table can filter without joining back to `assets` for a since-deleted row. Null for entity types with no category concept (transaction, trade, bank_account, cash_adjustment). */
+    category: text("category"),
+    action: changeActionEnum("action").notNull(),
+    changes: jsonb("changes").notNull(),
+    label: text("label").notNull(),
+    changedBy: text("changed_by").notNull(),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("change_logs_entity_idx").on(table.entityType, table.entityId),
+    index("change_logs_category_idx").on(table.category),
+    index("change_logs_changed_at_idx").on(table.changedAt),
+  ]
+);
 
 // --- Relations ---------------------------------------------------------------
 
