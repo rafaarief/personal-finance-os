@@ -208,90 +208,61 @@ export async function getSnapshotChange(): Promise<SnapshotChange | null> {
   };
 }
 
-export interface NetWorthHistoryPoint {
-  month: string; // YYYY-MM
-  netWorth: number;
-}
-
-/** One point per month: the sum of each asset's latest snapshot value on/before that month. */
-export async function getNetWorthHistory(monthsBack = 24): Promise<NetWorthHistoryPoint[]> {
-  const db = getDb();
-  const rows = await db.execute<{ month: string; net_worth: string }>(sql`
-    with months as (
-      select to_char(date_trunc('month', d), 'YYYY-MM') as month
-      from generate_series(
-        date_trunc('month', now()) - (${monthsBack}::int || ' months')::interval,
-        date_trunc('month', now()),
-        '1 month'
-      ) as d
-    ),
-    latest_per_asset_month as (
-      select
-        m.month,
-        s.asset_id,
-        (array_agg(s.current_value order by s.snapshot_date desc))[1] as current_value
-      from months m
-      join ${schema.assetValueSnapshots} s
-        on to_char(date_trunc('month', s.snapshot_date), 'YYYY-MM') <= m.month
-      group by m.month, s.asset_id
-    )
-    select month, coalesce(sum(current_value), 0) as net_worth
-    from latest_per_asset_month
-    group by month
-    order by month
-  `);
-
-  return rows.map((row) => ({ month: row.month, netWorth: toNumber(row.net_worth) }));
-}
-
 export interface NetWorthHistoryExactPoint {
-  snapshotDate: string; // YYYY-MM-DD
+  snapshotDate: string; // YYYY-MM-01
   netWorth: number;
 }
 
 /**
- * One point per DISTINCT snapshot date across every asset (any source,
- * manual or import) — for charting historical wealth with real, irregular
- * statement dates instead of assuming every record is exactly one month
- * apart. Each point is a true carry-forward total (every active asset's own
- * latest snapshot at or before that date), the same approach as
- * getWealthSummaryAsOf — never a same-day sum, which would fake a cliff in
- * the chart if a date only happened to touch one or two assets (a manual
- * edit, or a bank recompute). This is what makes a same-day manual edit
- * (dates are pre-rolled to a month-start by toNextStatementDate before being
- * written — see updateAssetValue / updateAssetCurrentValue) show up
- * immediately as a real point on the chart, ahead of the calendar actually
- * reaching that month, since it's just "every asset's latest known value as
- * of that date" rather than "what happened to get touched that day".
+ * One point per calendar month boundary (1 Jun, 1 Jul, 1 Aug, 1 Sep, ...) —
+ * never a raw snapshot date, so an old irregular statement date (17 Jul, 31
+ * Jul, ...) doesn't clutter the chart with its own stray point. Each point
+ * is a true carry-forward total as of that 1st-of-month date (every active
+ * asset's own latest snapshot at or before it), the same approach as
+ * getWealthSummaryAsOf. This is what makes a value edited any day in August
+ * count toward the 1 September figure: manual edits are pre-rolled to the
+ * next month-start date before being written (toNextStatementDate, see
+ * updateAssetValue / updateAssetCurrentValue), so "snapshot_date <= 1 Sep"
+ * already picks it up — which also means 1 September can appear on the
+ * chart the moment such an edit happens, even while the calendar is still
+ * in August. The month range spans from the earliest recorded snapshot's
+ * month through the latest one's — never capped at "today" — precisely so
+ * that forward-rolled month can show up early.
  */
 export async function getNetWorthHistoryExact(): Promise<NetWorthHistoryExactPoint[]> {
   const db = getDb();
-  const rows = await db.execute<{ snapshot_date: string; total: string }>(sql`
-    with active_assets as (
+  const rows = await db.execute<{ month_start: string; total: string }>(sql`
+    with bounds as (
+      select date_trunc('month', min(snapshot_date)) as start_month,
+             date_trunc('month', max(snapshot_date)) as end_month
+      from ${schema.assetValueSnapshots}
+    ),
+    months as (
+      select generate_series(start_month, end_month, '1 month')::date as month_start
+      from bounds
+    ),
+    active_assets as (
       select id from ${schema.assets} where is_active = true
     ),
-    dates as (
-      select distinct snapshot_date from ${schema.assetValueSnapshots}
-    ),
-    latest_per_asset_date as (
-      select d.snapshot_date, aa.id as asset_id, f.current_value
-      from dates d
+    latest_per_asset_month as (
+      select m.month_start, aa.id as asset_id, f.current_value
+      from months m
       cross join active_assets aa
       join lateral (
         select s.current_value
         from ${schema.assetValueSnapshots} s
-        where s.asset_id = aa.id and s.snapshot_date <= d.snapshot_date
+        where s.asset_id = aa.id and s.snapshot_date <= m.month_start
         order by s.snapshot_date desc
         limit 1
       ) f on true
     )
-    select snapshot_date, coalesce(sum(current_value), 0) as total
-    from latest_per_asset_date
-    group by snapshot_date
-    order by snapshot_date
+    select month_start, coalesce(sum(current_value), 0) as total
+    from latest_per_asset_month
+    group by month_start
+    order by month_start
   `);
 
-  return rows.map((row) => ({ snapshotDate: row.snapshot_date, netWorth: toNumber(row.total) }));
+  return rows.map((row) => ({ snapshotDate: row.month_start, netWorth: toNumber(row.total) }));
 }
 
 // --- Module 6a: Capital Market / Business valuation (per-asset, individually editable) ---
