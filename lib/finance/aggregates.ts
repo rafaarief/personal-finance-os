@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { currentMonthString, lastNMonths } from "@/lib/format/date";
 
@@ -91,16 +91,20 @@ export async function getWealthSummary(): Promise<WealthSummary> {
 
 /**
  * Minimum number of distinct assets a date needs a snapshot row for, to count
- * as a real "as of this date" statement rather than an incidental single-asset
- * touch (a manual edit in the Asset form, or a bank-account balance recompute
- * after a transaction import both create a snapshot for just the one asset
- * involved). Chosen empirically: every genuine historical/closing statement
- * imported so far covers >=4 assets; every known single-asset artifact covers
- * <=2. This is a heuristic, not a schema guarantee — a dedicated "statement"
- * concept distinct from ad-hoc snapshots would be the more robust long-term
- * fix if a legitimate statement ever reports fewer than this many accounts.
+ * as a real "as of this date" statement rather than a partial re-import or
+ * correction touching only a handful of accounts. Raised from 3 to 6 after
+ * 2026-07-31 (a 3-account BCA/Bank Jago/Mandiri-only cash re-import, ~371M)
+ * got picked up as "the latest statement" and made the dashboard show ~300M
+ * net worth instead of the real ~870M+ from the 2026-07-01 full statement —
+ * same failure mode as 2024-12-14 (4 assets, investment+business+vehicle
+ * only, no cash) had already caused unnoticed. Every genuine full statement
+ * on record covers >=6 assets across multiple categories; every known
+ * partial-import artifact covers <=4. This is still a heuristic, not a
+ * schema guarantee — a dedicated "statement" concept distinct from ad-hoc
+ * snapshots would be the more robust long-term fix if a legitimate statement
+ * ever reports fewer than this many accounts.
  */
-const MIN_ASSETS_FOR_STATEMENT_DATE = 3;
+const MIN_ASSETS_FOR_STATEMENT_DATE = 6;
 
 /**
  * Most recent distinct snapshot date that looks like a real statement, and
@@ -793,21 +797,26 @@ export interface CashflowSummary {
 
 /**
  * Total cash (sum of each active cash asset's own latest snapshot at or
- * before `dateExclusive`, forward-filled per asset) — the real, known
- * balance at a point in time, not today's live figure. This is what lets
- * Opening Cash for a month equal the actual balance the month started with,
- * instead of a number back-solved from today regardless of which month is
- * being viewed.
+ * before `asOfDate`, forward-filled per asset) — the real, known balance at
+ * a point in time, not today's live figure. This is what lets Opening Cash
+ * for a month equal the actual balance the month started with, instead of a
+ * number back-solved from today regardless of which month is being viewed.
+ *
+ * Inclusive (`<=`), not strictly-before — a statement dated exactly on the
+ * 1st (e.g. "2026-07-01") IS that month's opening balance; excluding it (an
+ * earlier bug here used `<`) skipped straight past the real reported balance
+ * to whatever stale value predated it, which is why Opening Cash used to
+ * come out lower than the actual statement.
  */
-async function getCashBalanceBefore(dateExclusive: string): Promise<number> {
+async function getCashBalanceAsOf(asOfDate: string, optionalAssetId?: string): Promise<number> {
   const db = getDb();
   const rows = await db.execute<{ total: string }>(sql`
     select coalesce(sum(f.current_value), 0) as total
-    from (select id from ${schema.assets} where category = 'cash' and is_active = true) a
+    from (select id from ${schema.assets} where category = 'cash' and is_active = true ${optionalAssetId ? sql`and id = ${optionalAssetId}` : sql``}) a
     join lateral (
       select s.current_value
       from ${schema.assetValueSnapshots} s
-      where s.asset_id = a.id and s.snapshot_date < ${dateExclusive}
+      where s.asset_id = a.id and s.snapshot_date <= ${asOfDate}
       order by s.snapshot_date desc
       limit 1
     ) f on true
@@ -815,7 +824,13 @@ async function getCashBalanceBefore(dateExclusive: string): Promise<number> {
   return toNumber(rows[0]?.total);
 }
 
-export async function getCashflowSummary(month: string): Promise<CashflowSummary> {
+/**
+ * `cashAssetId` scopes the whole statement to one cash account (e.g. "BCA
+ * only") instead of every cash account combined — both the flows (via the
+ * transaction's bank account being linked to that asset) and the Opening/
+ * Ending balance. Omit it for "All".
+ */
+export async function getCashflowSummary(month: string, cashAssetId?: string): Promise<CashflowSummary> {
   const db = getDb();
 
   // Deliberately keyed off transactions.is_internal_transfer, NOT categories.kind — an
@@ -830,7 +845,13 @@ export async function getCashflowSummary(month: string): Promise<CashflowSummary
       investmentOut: sql<string>`coalesce(sum(${schema.transactions.moneyOut}) filter (where ${schema.transactions.isInvestment}), 0)`,
     })
     .from(schema.transactions)
-    .where(sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`);
+    .innerJoin(schema.bankAccounts, eq(schema.bankAccounts.id, schema.transactions.bankAccountId))
+    .where(
+      and(
+        sql`to_char(${schema.transactions.transactionDate}, 'YYYY-MM') = ${month}`,
+        cashAssetId ? eq(schema.bankAccounts.linkedAssetId, cashAssetId) : undefined
+      )
+    );
 
   const moneyIn = toNumber(flows?.moneyIn);
   const moneyOut = toNumber(flows?.moneyOut);
@@ -841,7 +862,7 @@ export async function getCashflowSummary(month: string): Promise<CashflowSummary
   // month's P&L — computed forward, never read from today's live balance regardless of
   // which month is being viewed (that was the bug: every month used to show TODAY's
   // cash position as "Ending Cash").
-  const beginningCash = await getCashBalanceBefore(`${month}-01`);
+  const beginningCash = await getCashBalanceAsOf(`${month}-01`, cashAssetId);
   const endingCash = beginningCash + moneyIn - moneyOut;
 
   const savingRate = moneyIn > 0 ? (moneyIn - moneyOut) / moneyIn : null;
@@ -867,6 +888,68 @@ export async function getCashflowSummary(month: string): Promise<CashflowSummary
     runwayMonths,
     emergencyFundRatio,
   };
+}
+
+export interface CashAccountOption {
+  id: string;
+  name: string;
+}
+
+/** Active cash accounts (BCA, BNI, Bank Jago, Mandiri, e-wallets, ...) — populates the Cashflow statement's account filter. */
+export async function getCashAccountsList(): Promise<CashAccountOption[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: schema.assets.id, name: schema.assets.name })
+    .from(schema.assets)
+    .where(and(eq(schema.assets.category, "cash"), eq(schema.assets.isActive, true)))
+    .orderBy(schema.assets.name);
+  return rows;
+}
+
+export interface CashReconciliation {
+  month: string;
+  cashAssetId: string;
+  /** Opening + tracked Money In/Out for this account this month. */
+  computedEnding: number;
+  /** The account's own real balance as of the start of next month, from its latest snapshot — null if nothing's been recorded for/after that date. */
+  actualNextOpening: number | null;
+  /**
+   * actualNextOpening - computedEnding. Positive => unexplained cash appeared
+   * (record as Adjustment Income); negative => cash is missing versus what
+   * the ledger implies (record as Adjustment Expense). Null when
+   * actualNextOpening is unknown — never guessed.
+   */
+  gap: number | null;
+}
+
+function nextMonthStart(month: string): string {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber, 1));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * How far a month's tracked transactions (Opening + Money In - Money Out)
+ * land from the account's own next real statement balance — the same
+ * "chain" getCashflowSummary computes, surfaced explicitly so a persistent
+ * gap can be recorded as a visible Adjustment entry instead of silently
+ * carried forward forever.
+ */
+export async function getCashReconciliation(month: string, cashAssetId: string): Promise<CashReconciliation> {
+  const summary = await getCashflowSummary(month, cashAssetId);
+  const nextStart = nextMonthStart(month);
+
+  const db = getDb();
+  const [hasFutureData] = await db
+    .select({ id: schema.assetValueSnapshots.id })
+    .from(schema.assetValueSnapshots)
+    .where(and(eq(schema.assetValueSnapshots.assetId, cashAssetId), gte(schema.assetValueSnapshots.snapshotDate, nextStart)))
+    .limit(1);
+
+  const actualNextOpening = hasFutureData ? await getCashBalanceAsOf(nextStart, cashAssetId) : null;
+  const gap = actualNextOpening !== null ? actualNextOpening - summary.endingCash : null;
+
+  return { month, cashAssetId, computedEnding: summary.endingCash, actualNextOpening, gap };
 }
 
 export interface CashflowTransactionRow {
