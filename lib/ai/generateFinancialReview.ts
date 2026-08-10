@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
-import { callKimiChat, getKimiApiKey, KimiRequestError } from "./kimiClient";
+import { callDeepseekChat, getDeepseekApiKey, DeepseekRequestError } from "./deepseekClient";
 import { financialReviewResponseSchema, type FinancialReviewResponse } from "@/lib/schemas/financialReview";
 import { ALLOCATION_TARGETS } from "@/lib/finance/targets";
 import type { FinancialSignals, Highlight } from "@/lib/finance/insights";
@@ -33,7 +33,7 @@ function buildFallbackSummary(signals: FinancialSignals): FinancialReviewRespons
   return { summary: parts.join(" "), recommendation: null };
 }
 
-async function callKimiForReview(signals: FinancialSignals, highlights: Highlight[]): Promise<FinancialReviewResponse> {
+async function callDeepseekForReview(signals: FinancialSignals, highlights: Highlight[]): Promise<FinancialReviewResponse> {
   const payload = {
     signals: {
       netWorth: signals.netWorth,
@@ -60,7 +60,7 @@ async function callKimiForReview(signals: FinancialSignals, highlights: Highligh
     currency: "IDR",
   };
 
-  const raw = await callKimiChat([
+  const raw = await callDeepseekChat([
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: JSON.stringify(payload) },
   ]);
@@ -70,12 +70,12 @@ async function callKimiForReview(signals: FinancialSignals, highlights: Highligh
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     parsedJson = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
   } catch {
-    throw new KimiRequestError(`Kimi response was not valid JSON: ${raw.slice(0, 200)}`);
+    throw new DeepseekRequestError(`DeepSeek response was not valid JSON: ${raw.slice(0, 200)}`);
   }
 
   const parsed = financialReviewResponseSchema.safeParse(parsedJson);
   if (!parsed.success) {
-    throw new KimiRequestError(`Kimi response failed validation: ${parsed.error.message}`);
+    throw new DeepseekRequestError(`DeepSeek response failed validation: ${parsed.error.message}`);
   }
 
   return parsed.data;
@@ -84,7 +84,7 @@ async function callKimiForReview(signals: FinancialSignals, highlights: Highligh
 /**
  * Returns today's AI narrative, generating + caching it on first call of the
  * day. The `financial_reviews` row (keyed by reviewDate, unique) *is* the
- * cache — a second call the same day just reads it back, no Kimi call.
+ * cache — a second call the same day just reads it back, no DeepSeek call.
  * Highlights/allocation numbers on the page are always computed fresh
  * (cheap, deterministic); only the AI prose is what's cached here.
  */
@@ -106,11 +106,11 @@ export async function getOrCreateTodaysReview(
   }
 
   let result: FinancialReviewResponse;
-  if (getKimiApiKey()) {
+  if (getDeepseekApiKey()) {
     try {
-      result = await callKimiForReview(signals, highlights);
+      result = await callDeepseekForReview(signals, highlights);
     } catch (error) {
-      console.warn("Kimi review generation failed, using fallback summary:", error);
+      console.warn("DeepSeek review generation failed, using fallback summary:", error);
       result = buildFallbackSummary(signals);
     }
   } else {

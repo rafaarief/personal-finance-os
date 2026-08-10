@@ -60,7 +60,7 @@ export function FinanceChat() {
     <GlassCard>
       <div className="flex items-center justify-between">
         <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">
-          Ask Kimi about your finances
+          Ask DeepSeek about your finances
         </h2>
         {messages.length > 0 ? (
           <button

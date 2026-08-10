@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { callKimiChat, getKimiApiKey, KimiRequestError, type KimiChatMessage } from "@/lib/ai/kimiClient";
+import { callDeepseekChat, getDeepseekApiKey, DeepseekRequestError, type DeepseekChatMessage } from "@/lib/ai/deepseekClient";
 import { buildFinancialContext } from "@/lib/ai/chatContext";
 
 const chatRequestSchema = z.object({
@@ -23,9 +23,9 @@ Financial data snapshot:
 `;
 
 export async function POST(request: Request) {
-  if (!getKimiApiKey()) {
+  if (!getDeepseekApiKey()) {
     return NextResponse.json(
-      { error: "KIMI_API_KEY is not configured on the server" },
+      { error: "DEEPSEEK_API_KEY is not configured on the server" },
       { status: 503 }
     );
   }
@@ -40,15 +40,15 @@ export async function POST(request: Request) {
     const contextJson = await buildFinancialContext();
     const systemPrompt = `${SYSTEM_PROMPT_PREFIX}${contextJson}`;
 
-    const messages: KimiChatMessage[] = [
+    const messages: DeepseekChatMessage[] = [
       { role: "system", content: systemPrompt },
       ...parsed.data.messages,
     ];
 
-    const reply = await callKimiChat(messages);
+    const reply = await callDeepseekChat(messages);
     return NextResponse.json({ reply });
   } catch (error) {
-    const message = error instanceof KimiRequestError ? error.message : "Chat request failed";
+    const message = error instanceof DeepseekRequestError ? error.message : "Chat request failed";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
