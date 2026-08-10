@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db/client";
 import { assetInputSchema } from "@/lib/schemas/asset";
 import { requireOwner, actorLabel } from "@/lib/auth/currentUser";
 import { recordChange, diffFields, createdFields } from "@/lib/actions/changeLog";
+import { toNextStatementDate } from "@/lib/format/date";
 
 export async function createAsset(formData: FormData) {
   const session = await requireOwner();
@@ -81,7 +82,7 @@ export async function updateAssetValue(assetId: string, formData: FormData) {
 
   const db = getDb();
   const now = new Date();
-  const snapshotDate = now.toISOString().slice(0, 10);
+  const snapshotDate = toNextStatementDate(now.toISOString().slice(0, 10));
 
   const [existing] = await db
     .select({

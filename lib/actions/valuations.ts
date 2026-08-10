@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
 import { requireOwner, actorLabel } from "@/lib/auth/currentUser";
 import { recordChange, diffFields } from "@/lib/actions/changeLog";
+import { toNextStatementDate } from "@/lib/format/date";
 
 const updateValueSchema = z.object({
   snapshotDate: z.string().min(1),
@@ -19,16 +20,25 @@ export type UpdateAssetCurrentValueInput = z.input<typeof updateValueSchema>;
 /**
  * Edits an asset's Current Value (Capital Market market price, or Business
  * estimated value) for a given date — without ever touching its capital /
- * book value. Capital is carried forward from the closest known prior
+ * book value. The date is rolled forward to its representative month-start
+ * statement date first (toNextStatementDate), so an edit made any day in
+ * August lands on 1 September, keeping the net worth chart on clean monthly
+ * boundaries. Capital is carried forward from the closest known prior
  * snapshot (or, failing that, the closest known snapshot at all) so Gain/Loss
- * stays derivable after the edit. If a snapshot already exists for this
- * asset+date it's updated in place; otherwise a new one is inserted —
+ * stays derivable after the edit. If a snapshot already exists for the
+ * resolved date it's updated in place; otherwise a new one is inserted —
  * historical snapshots are never destroyed.
  */
 export async function updateAssetCurrentValue(assetId: string, input: UpdateAssetCurrentValueInput) {
   const session = await requireOwner();
   const parsed = updateValueSchema.parse(input);
   const db = getDb();
+
+  // Roll a mid-month edit forward to its representative month-start date —
+  // see toNextStatementDate. A deliberately backdated "As of" edit (day !== 1)
+  // rolls the same way, since the point is for every manual edit to land on a
+  // clean monthly boundary for charting, not to distinguish backfills.
+  const snapshotDate = toNextStatementDate(parsed.snapshotDate);
 
   const [assetRow] = await db
     .select({ name: schema.assets.name, category: schema.assets.category })
@@ -43,7 +53,7 @@ export async function updateAssetCurrentValue(assetId: string, input: UpdateAsse
       valuationMethod: schema.assetValueSnapshots.valuationMethod,
     })
     .from(schema.assetValueSnapshots)
-    .where(and(eq(schema.assetValueSnapshots.assetId, assetId), eq(schema.assetValueSnapshots.snapshotDate, parsed.snapshotDate)))
+    .where(and(eq(schema.assetValueSnapshots.assetId, assetId), eq(schema.assetValueSnapshots.snapshotDate, snapshotDate)))
     .limit(1);
 
   const [priorCapital] = await db
@@ -52,7 +62,7 @@ export async function updateAssetCurrentValue(assetId: string, input: UpdateAsse
     .where(
       and(
         eq(schema.assetValueSnapshots.assetId, assetId),
-        lte(schema.assetValueSnapshots.snapshotDate, parsed.snapshotDate),
+        lte(schema.assetValueSnapshots.snapshotDate, snapshotDate),
         isNotNull(schema.assetValueSnapshots.capitalContributed)
       )
     )
@@ -76,7 +86,7 @@ export async function updateAssetCurrentValue(assetId: string, input: UpdateAsse
     .insert(schema.assetValueSnapshots)
     .values({
       assetId,
-      snapshotDate: parsed.snapshotDate,
+      snapshotDate,
       currentValue: parsed.currentValue.toString(),
       capitalContributed: carriedCapital,
       notes: parsed.notes ?? null,

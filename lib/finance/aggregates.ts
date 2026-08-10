@@ -250,23 +250,44 @@ export interface NetWorthHistoryExactPoint {
 }
 
 /**
- * One point per DISTINCT snapshot date (not month-bucketed) — for charting
- * historical wealth with real, irregular statement dates instead of
- * assuming every record is exactly one month apart.
- *
- * Same source='import' + MIN_ASSETS_FOR_STATEMENT_DATE filter as
- * getLatestSnapshotDates — a single-asset touch (manual edit or a bank
- * recompute) would otherwise show up as a full-net-worth data point using
- * just that one asset's value, faking a cliff in the chart.
+ * One point per DISTINCT snapshot date across every asset (any source,
+ * manual or import) — for charting historical wealth with real, irregular
+ * statement dates instead of assuming every record is exactly one month
+ * apart. Each point is a true carry-forward total (every active asset's own
+ * latest snapshot at or before that date), the same approach as
+ * getWealthSummaryAsOf — never a same-day sum, which would fake a cliff in
+ * the chart if a date only happened to touch one or two assets (a manual
+ * edit, or a bank recompute). This is what makes a same-day manual edit
+ * (dates are pre-rolled to a month-start by toNextStatementDate before being
+ * written — see updateAssetValue / updateAssetCurrentValue) show up
+ * immediately as a real point on the chart, ahead of the calendar actually
+ * reaching that month, since it's just "every asset's latest known value as
+ * of that date" rather than "what happened to get touched that day".
  */
 export async function getNetWorthHistoryExact(): Promise<NetWorthHistoryExactPoint[]> {
   const db = getDb();
   const rows = await db.execute<{ snapshot_date: string; total: string }>(sql`
+    with active_assets as (
+      select id from ${schema.assets} where is_active = true
+    ),
+    dates as (
+      select distinct snapshot_date from ${schema.assetValueSnapshots}
+    ),
+    latest_per_asset_date as (
+      select d.snapshot_date, aa.id as asset_id, f.current_value
+      from dates d
+      cross join active_assets aa
+      join lateral (
+        select s.current_value
+        from ${schema.assetValueSnapshots} s
+        where s.asset_id = aa.id and s.snapshot_date <= d.snapshot_date
+        order by s.snapshot_date desc
+        limit 1
+      ) f on true
+    )
     select snapshot_date, coalesce(sum(current_value), 0) as total
-    from ${schema.assetValueSnapshots}
-    where source = 'import'
+    from latest_per_asset_date
     group by snapshot_date
-    having count(distinct asset_id) >= ${MIN_ASSETS_FOR_STATEMENT_DATE}
     order by snapshot_date
   `);
 
