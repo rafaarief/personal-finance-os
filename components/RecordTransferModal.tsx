@@ -101,8 +101,9 @@ export function RecordTransferModal({ accounts }: { accounts: AssetPickerOption[
             <div>
               <h3 className="font-(family-name:--font-display) text-lg text-(--color-ink-primary)">Record Transfer</h3>
               <p className="mt-0.5 text-xs text-(--color-ink-muted)">
-                Tag money moving between accounts — e.g. Business down 10jt because it went to Cash, or Cash down 20jt to fund a new
-                business asset.
+                For deposits and withdrawals — money moving between accounts, e.g. Business down 10jt because it went to Cash, or Cash
+                down 20jt to fund a new business asset. This moves capital along with the value, so it never shows up as Gain/Loss —
+                for market moves (take profit / cut loss) use Edit Current Value on the account instead.
               </p>
             </div>
 

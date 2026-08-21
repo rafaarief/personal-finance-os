@@ -97,6 +97,14 @@ export function EditCurrentValueModal({
               {lastUpdated ? (
                 <p className="mt-0.5 text-xs text-(--color-ink-muted)">Last updated {formatShortDate(lastUpdated)}</p>
               ) : null}
+              {hasCapital ? (
+                <p className="mt-2 text-xs text-(--color-ink-muted)">
+                  For market moves only — take profit / cut loss. {capitalLabel} stays locked, so this is exactly what counts toward{" "}
+                  <span className="text-(--color-ink-secondary)">Gain / Loss</span>. Depositing or withdrawing money? Use{" "}
+                  <span className="text-(--color-ink-secondary)">↔ Record Transfer</span> instead so it doesn&apos;t get counted as a
+                  gain.
+                </p>
+              ) : null}
             </div>
 
             {hasCapital ? (

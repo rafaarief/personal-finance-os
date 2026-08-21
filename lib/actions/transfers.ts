@@ -59,6 +59,8 @@ export async function recordAssetTransfer(input: RecordAssetTransferInput) {
       assetId: parsed.fromAssetId,
       snapshotDate,
       currentValue: current - parsed.amount,
+      // Capital leaves with the money (withdrawal) so this never reads as a loss.
+      capitalDelta: -parsed.amount,
       notes: `Transfer to ${toLabel}${suffix}`,
       changedBy: actor,
     });
@@ -70,6 +72,8 @@ export async function recordAssetTransfer(input: RecordAssetTransferInput) {
       assetId: parsed.toAssetId,
       snapshotDate,
       currentValue: current + parsed.amount,
+      // Capital arrives with the money (deposit) so this never reads as a gain.
+      capitalDelta: parsed.amount,
       notes: `Transfer from ${fromLabel}${suffix}`,
       changedBy: actor,
     });

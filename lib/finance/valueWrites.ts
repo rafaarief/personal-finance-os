@@ -10,6 +10,14 @@ export interface SetAssetValueParams {
   notes?: string | null;
   valuationMethod?: string | null;
   changedBy: string;
+  /**
+   * Deposit (+) or withdrawal (-) to apply to capital alongside currentValue,
+   * so money moving in/out of an account never reads as gain/loss. Omit for
+   * a bare mark-to-market edit (take profit / cut loss), which intentionally
+   * moves currentValue while capital stays locked. Ignored when capital for
+   * this asset isn't known yet, to avoid fabricating a cost basis.
+   */
+  capitalDelta?: number;
 }
 
 /**
@@ -21,7 +29,7 @@ export interface SetAssetValueParams {
  * (this file has no "use server") — callers own their own auth check.
  */
 export async function setAssetValueAsOf(params: SetAssetValueParams): Promise<void> {
-  const { assetId, snapshotDate, currentValue, notes = null, valuationMethod = null, changedBy } = params;
+  const { assetId, snapshotDate, currentValue, notes = null, valuationMethod = null, changedBy, capitalDelta } = params;
   const db = getDb();
 
   const [assetRow] = await db
@@ -33,6 +41,7 @@ export async function setAssetValueAsOf(params: SetAssetValueParams): Promise<vo
   const [existingSnapshot] = await db
     .select({
       currentValue: schema.assetValueSnapshots.currentValue,
+      capitalContributed: schema.assetValueSnapshots.capitalContributed,
       notes: schema.assetValueSnapshots.notes,
       valuationMethod: schema.assetValueSnapshots.valuationMethod,
     })
@@ -67,6 +76,10 @@ export async function setAssetValueAsOf(params: SetAssetValueParams): Promise<vo
     carriedCapital = earliestCapital?.capitalContributed ?? null;
   }
 
+  if (capitalDelta && carriedCapital !== null) {
+    carriedCapital = (Number(carriedCapital) + capitalDelta).toString();
+  }
+
   await db
     .insert(schema.assetValueSnapshots)
     .values({
@@ -86,10 +99,11 @@ export async function setAssetValueAsOf(params: SetAssetValueParams): Promise<vo
   const changes = diffFields(
     {
       currentValue: existingSnapshot?.currentValue ?? null,
+      capitalContributed: existingSnapshot?.capitalContributed ?? null,
       notes: existingSnapshot?.notes ?? null,
       valuationMethod: existingSnapshot?.valuationMethod ?? null,
     },
-    { currentValue: currentValue.toString(), notes, valuationMethod }
+    { currentValue: currentValue.toString(), capitalContributed: carriedCapital, notes, valuationMethod }
   );
   if (Object.keys(changes).length > 0) {
     await recordChange({
