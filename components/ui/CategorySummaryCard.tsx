@@ -14,6 +14,8 @@ interface BreakdownItem {
   secondary?: SecondaryBreakdownItem[];
   /** Change vs previousMonthLabel, e.g. -0.3 for -30%. Null/undefined hides the row (no prior-month data to compare). */
   changePct?: number | null;
+  /** Rupiah change vs previousMonthLabel, shown alongside changePct. */
+  changeAmount?: number | null;
 }
 
 interface CategorySummaryCardProps {
@@ -23,11 +25,21 @@ interface CategorySummaryCardProps {
   breakdown: BreakdownItem[];
   /** Change of `total` vs previousMonthLabel. */
   changePct?: number | null;
+  /** Rupiah change of `total` vs previousMonthLabel. */
+  changeAmount?: number | null;
   /** "Aug 2026" — required to render any changePct, since a number alone has no comparison point. */
   previousMonthLabel?: string | null;
 }
 
-function MoMChange({ changePct, previousMonthLabel }: { changePct: number | null | undefined; previousMonthLabel: string | null | undefined }) {
+function MoMChange({
+  changePct,
+  changeAmount,
+  previousMonthLabel,
+}: {
+  changePct: number | null | undefined;
+  changeAmount: number | null | undefined;
+  previousMonthLabel: string | null | undefined;
+}) {
   if (changePct === null || changePct === undefined || !previousMonthLabel) return null;
   const positive = changePct >= 0;
   return (
@@ -35,7 +47,11 @@ function MoMChange({ changePct, previousMonthLabel }: { changePct: number | null
       className="tabular whitespace-nowrap"
       style={{ color: positive ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
     >
-      {positive ? "▲" : "▼"} {Math.abs(changePct * 100).toFixed(1)}% vs {previousMonthLabel}
+      {positive ? "▲" : "▼"} {Math.abs(changePct * 100).toFixed(1)}%
+      {changeAmount !== null && changeAmount !== undefined
+        ? ` (${positive ? "+" : "-"}${formatMoney(Math.abs(changeAmount))})`
+        : ""}{" "}
+      vs {previousMonthLabel}
     </span>
   );
 }
@@ -46,6 +62,7 @@ export function CategorySummaryCard({
   percentOfNetWorth,
   breakdown,
   changePct,
+  changeAmount,
   previousMonthLabel,
 }: CategorySummaryCardProps) {
   return (
@@ -56,7 +73,7 @@ export function CategorySummaryCard({
         {percentOfNetWorth !== null ? (
           <span className="text-(--color-ink-secondary)">{(percentOfNetWorth * 100).toFixed(1)}% of Net Worth</span>
         ) : null}
-        <MoMChange changePct={changePct} previousMonthLabel={previousMonthLabel} />
+        <MoMChange changePct={changePct} changeAmount={changeAmount} previousMonthLabel={previousMonthLabel} />
       </div>
 
       <div className="mt-5 space-y-4">
@@ -83,7 +100,7 @@ export function CategorySummaryCard({
               </div>
               {item.changePct !== null && item.changePct !== undefined && previousMonthLabel ? (
                 <p className="mt-1 text-xs">
-                  <MoMChange changePct={item.changePct} previousMonthLabel={previousMonthLabel} />
+                  <MoMChange changePct={item.changePct} changeAmount={item.changeAmount} previousMonthLabel={previousMonthLabel} />
                 </p>
               ) : null}
 

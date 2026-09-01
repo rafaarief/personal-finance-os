@@ -85,14 +85,22 @@ export default async function DashboardPage() {
           total={signals.liquidAssets}
           percentOfNetWorth={signals.liquidityRatio}
           changePct={signals.liquidAssetsMoMChangePct}
+          changeAmount={signals.liquidAssetsMoMChangeAmount}
           previousMonthLabel={signals.previousMonthLabel}
           breakdown={[
-            { label: "Cash", value: signals.cashPosition, color: ASSET_CLASS_COLOR.CASH, changePct: signals.cashMoMChangePct },
+            {
+              label: "Cash",
+              value: signals.cashPosition,
+              color: ASSET_CLASS_COLOR.CASH,
+              changePct: signals.cashMoMChangePct,
+              changeAmount: signals.cashMoMChangeAmount,
+            },
             {
               label: "Capital Market",
               value: signals.investmentValue,
               color: ASSET_CLASS_COLOR.CAPITAL_MARKET,
               changePct: signals.investmentMoMChangePct,
+              changeAmount: signals.investmentMoMChangeAmount,
             },
           ]}
         />
@@ -101,6 +109,7 @@ export default async function DashboardPage() {
           total={signals.nonLiquidAssets}
           percentOfNetWorth={nonLiquidPct}
           changePct={signals.nonLiquidAssetsMoMChangePct}
+          changeAmount={signals.nonLiquidAssetsMoMChangeAmount}
           previousMonthLabel={signals.previousMonthLabel}
           breakdown={[
             {
@@ -108,12 +117,14 @@ export default async function DashboardPage() {
               value: signals.businessValue,
               color: ASSET_CLASS_COLOR.BUSINESS,
               changePct: signals.businessMoMChangePct,
+              changeAmount: signals.businessMoMChangeAmount,
             },
             {
               label: "Other Assets",
               value: otherAssetsTotal,
               color: ASSET_CLASS_COLOR.OTHER_ASSET,
               changePct: signals.otherAssetsMoMChangePct,
+              changeAmount: signals.otherAssetsMoMChangeAmount,
               secondary: [
                 { label: "Receivables", value: signals.receivableValue },
                 { label: "Vehicle", value: signals.vehicleValue },
@@ -123,53 +134,45 @@ export default async function DashboardPage() {
         />
       </div>
 
+      <GlassCard>
+        <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Net worth over time</h2>
+        <div className="mt-4">
+          <NetWorthAreaChart data={history} />
+        </div>
+      </GlassCard>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <HighlightsList highlights={highlights} />
         <AIReviewCard summary={review.summary} recommendation={review.recommendation} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <GlassCard className="lg:col-span-3">
-          <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">
-            Net worth over time
-          </h2>
-          <div className="mt-4">
-            <NetWorthAreaChart data={history} />
+      <GlassCard>
+        <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Asset allocation</h2>
+        <div className="mt-4">
+          {allocationData.length > 0 ? (
+            <AllocationDonut data={allocationData} />
+          ) : (
+            <p className="text-sm text-(--color-ink-muted)">No assets yet — add one under Assets to get started.</p>
+          )}
+        </div>
+        {signals.receivableValue > 0 || signals.vehicleValue > 0 ? (
+          <div className="mt-4 space-y-1 border-t border-(--color-border-hairline) pt-3 text-xs text-(--color-ink-muted)">
+            <p className="tracking-[0.1em] uppercase">Within Other Assets</p>
+            {signals.receivableValue > 0 ? (
+              <div className="flex justify-between">
+                <span>Receivables</span>
+                <span className="tabular whitespace-nowrap">{formatMoney(signals.receivableValue)}</span>
+              </div>
+            ) : null}
+            {signals.vehicleValue > 0 ? (
+              <div className="flex justify-between">
+                <span>Vehicle</span>
+                <span className="tabular whitespace-nowrap">{formatMoney(signals.vehicleValue)}</span>
+              </div>
+            ) : null}
           </div>
-        </GlassCard>
-
-        <GlassCard className="lg:col-span-2">
-          <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">
-            Asset allocation
-          </h2>
-          <div className="mt-4">
-            {allocationData.length > 0 ? (
-              <AllocationDonut data={allocationData} />
-            ) : (
-              <p className="text-sm text-(--color-ink-muted)">
-                No assets yet — add one under Assets to get started.
-              </p>
-            )}
-          </div>
-          {signals.receivableValue > 0 || signals.vehicleValue > 0 ? (
-            <div className="mt-4 space-y-1 border-t border-(--color-border-hairline) pt-3 text-xs text-(--color-ink-muted)">
-              <p className="tracking-[0.1em] uppercase">Within Other Assets</p>
-              {signals.receivableValue > 0 ? (
-                <div className="flex justify-between">
-                  <span>Receivables</span>
-                  <span className="tabular whitespace-nowrap">{formatMoney(signals.receivableValue)}</span>
-                </div>
-              ) : null}
-              {signals.vehicleValue > 0 ? (
-                <div className="flex justify-between">
-                  <span>Vehicle</span>
-                  <span className="tabular whitespace-nowrap">{formatMoney(signals.vehicleValue)}</span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </GlassCard>
-      </div>
+        ) : null}
+      </GlassCard>
 
       <FinanceChat />
     </div>

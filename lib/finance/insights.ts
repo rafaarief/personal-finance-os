@@ -47,14 +47,20 @@ export interface FinancialSignals {
   expenseMoMChangePct: number | null;
   investmentGainPct: number | null;
   healthStatus: HealthStatus;
-  /** "Aug 2026" — the calendar month each *MoMChangePct below is measured against. Null if there's no data far enough back to compare. */
+  /** "Aug 2026" — the calendar month each *MoMChange{Pct,Amount} below is measured against. Null if there's no data far enough back to compare. */
   previousMonthLabel: string | null;
   liquidAssetsMoMChangePct: number | null;
+  liquidAssetsMoMChangeAmount: number | null;
   nonLiquidAssetsMoMChangePct: number | null;
+  nonLiquidAssetsMoMChangeAmount: number | null;
   cashMoMChangePct: number | null;
+  cashMoMChangeAmount: number | null;
   investmentMoMChangePct: number | null;
+  investmentMoMChangeAmount: number | null;
   businessMoMChangePct: number | null;
+  businessMoMChangeAmount: number | null;
   otherAssetsMoMChangePct: number | null;
+  otherAssetsMoMChangeAmount: number | null;
 }
 
 export interface Highlight {
@@ -139,15 +145,25 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
 
   const previousMonthLabel = priorSnapshotMonth ? formatMonthLabel(priorSnapshotMonth) : null;
   const liquidAssetsMoMChangePct = priorMonthWealth ? pctChange(wealth.liquidAssets, priorMonthWealth.liquidAssets) : null;
+  const liquidAssetsMoMChangeAmount = priorMonthWealth ? wealth.liquidAssets - priorMonthWealth.liquidAssets : null;
   const nonLiquidAssetsMoMChangePct = priorMonthWealth
     ? pctChange(wealth.nonLiquidAssets, priorMonthWealth.nonLiquidAssets)
     : null;
+  const nonLiquidAssetsMoMChangeAmount = priorMonthWealth
+    ? wealth.nonLiquidAssets - priorMonthWealth.nonLiquidAssets
+    : null;
   const cashMoMChangePct = priorMonthWealth ? pctChange(wealth.cashPosition, priorMonthWealth.cashPosition) : null;
+  const cashMoMChangeAmount = priorMonthWealth ? wealth.cashPosition - priorMonthWealth.cashPosition : null;
   const investmentMoMChangePct = priorMonthWealth
     ? pctChange(wealth.capitalMarketValue, priorMonthWealth.investmentValue)
     : null;
+  const investmentMoMChangeAmount = priorMonthWealth
+    ? wealth.capitalMarketValue - priorMonthWealth.investmentValue
+    : null;
   const businessMoMChangePct = priorMonthWealth ? pctChange(wealth.businessValue, priorMonthWealth.businessValue) : null;
+  const businessMoMChangeAmount = priorMonthWealth ? wealth.businessValue - priorMonthWealth.businessValue : null;
   const otherAssetsMoMChangePct = priorOtherAssetsTotal !== null ? pctChange(otherAssetsTotal, priorOtherAssetsTotal) : null;
+  const otherAssetsMoMChangeAmount = priorOtherAssetsTotal !== null ? otherAssetsTotal - priorOtherAssetsTotal : null;
 
   return {
     netWorth,
@@ -179,11 +195,17 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     investmentGainPct: capitalMarket.returnPct !== null ? capitalMarket.returnPct / 100 : null,
     previousMonthLabel,
     liquidAssetsMoMChangePct,
+    liquidAssetsMoMChangeAmount,
     nonLiquidAssetsMoMChangePct,
+    nonLiquidAssetsMoMChangeAmount,
     cashMoMChangePct,
+    cashMoMChangeAmount,
     investmentMoMChangePct,
+    investmentMoMChangeAmount,
     businessMoMChangePct,
+    businessMoMChangeAmount,
     otherAssetsMoMChangePct,
+    otherAssetsMoMChangeAmount,
     healthStatus,
   };
 }

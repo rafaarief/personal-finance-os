@@ -1,7 +1,7 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCompactMoney } from "@/lib/format/money";
+import { formatMoney } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
 
 interface NetWorthAreaChartProps {
@@ -11,7 +11,7 @@ interface NetWorthAreaChartProps {
 
 export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
   return (
-    <div className="h-72 w-full">
+    <div className="h-96 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -31,16 +31,16 @@ export function NetWorthAreaChart({ data }: NetWorthAreaChartProps) {
             minTickGap={40}
           />
           <YAxis
-            tickFormatter={(value: number) => formatCompactMoney(value)}
+            tickFormatter={(value: number) => formatMoney(value)}
             tick={{ fill: "var(--color-ink-muted)", fontSize: 12 }}
             axisLine={false}
             tickLine={false}
-            width={72}
+            width={130}
           />
           <Tooltip
             labelFormatter={((date: any) => formatShortDate(String(date))) as any}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formatter={((value: any) => [formatCompactMoney(Number(value)), "Net worth"]) as any}
+            formatter={((value: any) => [formatMoney(Number(value)), "Net worth"]) as any}
             contentStyle={{
               background: "var(--color-surface-raised)",
               border: "1px solid var(--color-border-hairline)",
