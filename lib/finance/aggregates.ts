@@ -110,18 +110,22 @@ const MIN_ASSETS_FOR_STATEMENT_DATE = 6;
  * Most recent distinct snapshot date that looks like a real statement, and
  * the one immediately before it. Null if fewer than 1/2 exist.
  *
- * Only considers source='import' rows with enough assets to plausibly be a
- * full statement (see MIN_ASSETS_FOR_STATEMENT_DATE) — never source='manual',
- * and never a source='import' date that only touched one or two assets (e.g.
- * a bank-account recompute after a transaction import). Treating either as
- * "the latest snapshot date" would make every other asset silently vanish
- * from that date's totals (net worth would collapse to just that touch).
+ * Considers both source='import' and source='manual' rows — a full
+ * position update entered by hand (e.g. re-keying ~19 account balances from
+ * their apps on 2026-09-01, no bank statement file involved) is just as much
+ * "the latest statement" as an imported one. What actually distinguishes a
+ * real statement from a partial touch is MIN_ASSETS_FOR_STATEMENT_DATE, not
+ * the source: a date touching only one or two accounts (e.g. a single
+ * "Edit Current Value") never qualifies regardless of source, since treating
+ * it as "the latest snapshot date" would make every other asset silently
+ * vanish from that date's totals (net worth would collapse to just that
+ * touch).
  */
 export async function getLatestSnapshotDates(): Promise<{ latest: string | null; previous: string | null }> {
   const db = getDb();
   const rows = await db.execute<{ snapshot_date: string }>(sql`
     select snapshot_date from ${schema.assetValueSnapshots}
-    where source = 'import'
+    where source in ('import', 'manual')
     group by snapshot_date
     having count(distinct asset_id) >= ${MIN_ASSETS_FOR_STATEMENT_DATE}
     order by snapshot_date desc limit 2

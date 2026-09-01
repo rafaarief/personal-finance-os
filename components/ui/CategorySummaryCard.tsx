@@ -12,6 +12,8 @@ interface BreakdownItem {
   color: string;
   /** Rendered smaller/indented underneath, e.g. Receivables + Vehicle under Other Assets — never as prominent as the primary rows. */
   secondary?: SecondaryBreakdownItem[];
+  /** Change vs previousMonthLabel, e.g. -0.3 for -30%. Null/undefined hides the row (no prior-month data to compare). */
+  changePct?: number | null;
 }
 
 interface CategorySummaryCardProps {
@@ -19,16 +21,43 @@ interface CategorySummaryCardProps {
   total: number;
   percentOfNetWorth: number | null;
   breakdown: BreakdownItem[];
+  /** Change of `total` vs previousMonthLabel. */
+  changePct?: number | null;
+  /** "Aug 2026" — required to render any changePct, since a number alone has no comparison point. */
+  previousMonthLabel?: string | null;
 }
 
-export function CategorySummaryCard({ title, total, percentOfNetWorth, breakdown }: CategorySummaryCardProps) {
+function MoMChange({ changePct, previousMonthLabel }: { changePct: number | null | undefined; previousMonthLabel: string | null | undefined }) {
+  if (changePct === null || changePct === undefined || !previousMonthLabel) return null;
+  const positive = changePct >= 0;
+  return (
+    <span
+      className="tabular whitespace-nowrap"
+      style={{ color: positive ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
+    >
+      {positive ? "▲" : "▼"} {Math.abs(changePct * 100).toFixed(1)}% vs {previousMonthLabel}
+    </span>
+  );
+}
+
+export function CategorySummaryCard({
+  title,
+  total,
+  percentOfNetWorth,
+  breakdown,
+  changePct,
+  previousMonthLabel,
+}: CategorySummaryCardProps) {
   return (
     <GlassCard className="flex flex-col">
       <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{title}</p>
       <p className="kpi-figure mt-2 font-(family-name:--font-display) text-(--color-ink-primary)">{formatMoney(total)}</p>
-      {percentOfNetWorth !== null ? (
-        <p className="mt-1 text-sm text-(--color-ink-secondary)">{(percentOfNetWorth * 100).toFixed(1)}% of Net Worth</p>
-      ) : null}
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+        {percentOfNetWorth !== null ? (
+          <span className="text-(--color-ink-secondary)">{(percentOfNetWorth * 100).toFixed(1)}% of Net Worth</span>
+        ) : null}
+        <MoMChange changePct={changePct} previousMonthLabel={previousMonthLabel} />
+      </div>
 
       <div className="mt-5 space-y-4">
         {breakdown.map((item) => {
@@ -52,6 +81,11 @@ export function CategorySummaryCard({ title, total, percentOfNetWorth, breakdown
                   {(share * 100).toFixed(1)}%
                 </span>
               </div>
+              {item.changePct !== null && item.changePct !== undefined && previousMonthLabel ? (
+                <p className="mt-1 text-xs">
+                  <MoMChange changePct={item.changePct} previousMonthLabel={previousMonthLabel} />
+                </p>
+              ) : null}
 
               {item.secondary && item.secondary.length > 0 ? (
                 <div className="mt-2 ml-4 space-y-1 border-l border-(--color-border-hairline) pl-3">

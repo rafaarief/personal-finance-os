@@ -84,21 +84,36 @@ export default async function DashboardPage() {
           title="Liquid Assets"
           total={signals.liquidAssets}
           percentOfNetWorth={signals.liquidityRatio}
+          changePct={signals.liquidAssetsMoMChangePct}
+          previousMonthLabel={signals.previousMonthLabel}
           breakdown={[
-            { label: "Cash", value: signals.cashPosition, color: ASSET_CLASS_COLOR.CASH },
-            { label: "Capital Market", value: signals.investmentValue, color: ASSET_CLASS_COLOR.CAPITAL_MARKET },
+            { label: "Cash", value: signals.cashPosition, color: ASSET_CLASS_COLOR.CASH, changePct: signals.cashMoMChangePct },
+            {
+              label: "Capital Market",
+              value: signals.investmentValue,
+              color: ASSET_CLASS_COLOR.CAPITAL_MARKET,
+              changePct: signals.investmentMoMChangePct,
+            },
           ]}
         />
         <CategorySummaryCard
           title="Non-Liquid Assets"
           total={signals.nonLiquidAssets}
           percentOfNetWorth={nonLiquidPct}
+          changePct={signals.nonLiquidAssetsMoMChangePct}
+          previousMonthLabel={signals.previousMonthLabel}
           breakdown={[
-            { label: "Business", value: signals.businessValue, color: ASSET_CLASS_COLOR.BUSINESS },
+            {
+              label: "Business",
+              value: signals.businessValue,
+              color: ASSET_CLASS_COLOR.BUSINESS,
+              changePct: signals.businessMoMChangePct,
+            },
             {
               label: "Other Assets",
               value: otherAssetsTotal,
               color: ASSET_CLASS_COLOR.OTHER_ASSET,
+              changePct: signals.otherAssetsMoMChangePct,
               secondary: [
                 { label: "Receivables", value: signals.receivableValue },
                 { label: "Vehicle", value: signals.vehicleValue },

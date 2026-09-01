@@ -5,9 +5,16 @@ import {
   getCashflowSummary,
   getMonthlyIncomeExpense,
   getCapitalMarketSummary,
+  getWealthSummaryAsOf,
 } from "./aggregates";
 import { ALLOCATION_TARGETS, EMERGENCY_FUND_TARGET_MONTHS } from "./targets";
 import { currentMonthString, previousMonthString } from "@/lib/format/date";
+import { formatMonthLabel } from "@/lib/format/money";
+
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return (current - previous) / previous;
+}
 
 export type HealthStatus = "excellent" | "good" | "attention";
 
@@ -40,6 +47,14 @@ export interface FinancialSignals {
   expenseMoMChangePct: number | null;
   investmentGainPct: number | null;
   healthStatus: HealthStatus;
+  /** "Aug 2026" — the calendar month each *MoMChangePct below is measured against. Null if there's no data far enough back to compare. */
+  previousMonthLabel: string | null;
+  liquidAssetsMoMChangePct: number | null;
+  nonLiquidAssetsMoMChangePct: number | null;
+  cashMoMChangePct: number | null;
+  investmentMoMChangePct: number | null;
+  businessMoMChangePct: number | null;
+  otherAssetsMoMChangePct: number | null;
 }
 
 export interface Highlight {
@@ -63,12 +78,21 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const snapshotChange = await getSnapshotChange();
   const latestDate = snapshotChange?.latestDate ?? null;
 
-  const [wealth, history, cashflow, monthlyTrend, capitalMarket] = await Promise.all([
+  // The MoM comparison tracks the calendar month before the latest snapshot's
+  // own month (e.g. latest = 1 Sep -> compare against 1 Aug), the same
+  // month-boundary convention getNetWorthHistoryExact uses for the chart —
+  // not "30 days ago" or the literal previous snapshot, which can land on an
+  // irregular mid-month statement date.
+  const latestSnapshotMonth = latestDate ? latestDate.slice(0, 7) : null;
+  const priorSnapshotMonth = latestSnapshotMonth ? previousMonthString(latestSnapshotMonth) : null;
+
+  const [wealth, history, cashflow, monthlyTrend, capitalMarket, priorMonthWealth] = await Promise.all([
     getNetWorthSummary(),
     getNetWorthHistoryExact(),
     getCashflowSummary(month),
     getMonthlyIncomeExpense(13),
     getCapitalMarketSummary(),
+    priorSnapshotMonth ? getWealthSummaryAsOf(`${priorSnapshotMonth}-01`) : Promise.resolve(null),
   ]);
 
   const netWorth = wealth.netWorth;
@@ -108,6 +132,23 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
 
   const otherOnlyValue = wealth.otherAssetsValue - wealth.receivableValue - wealth.vehicleValue;
 
+  const otherAssetsTotal = otherOnlyValue + wealth.receivableValue + wealth.vehicleValue;
+  const priorOtherAssetsTotal = priorMonthWealth
+    ? priorMonthWealth.otherValue + priorMonthWealth.receivableValue + priorMonthWealth.vehicleValue
+    : null;
+
+  const previousMonthLabel = priorSnapshotMonth ? formatMonthLabel(priorSnapshotMonth) : null;
+  const liquidAssetsMoMChangePct = priorMonthWealth ? pctChange(wealth.liquidAssets, priorMonthWealth.liquidAssets) : null;
+  const nonLiquidAssetsMoMChangePct = priorMonthWealth
+    ? pctChange(wealth.nonLiquidAssets, priorMonthWealth.nonLiquidAssets)
+    : null;
+  const cashMoMChangePct = priorMonthWealth ? pctChange(wealth.cashPosition, priorMonthWealth.cashPosition) : null;
+  const investmentMoMChangePct = priorMonthWealth
+    ? pctChange(wealth.capitalMarketValue, priorMonthWealth.investmentValue)
+    : null;
+  const businessMoMChangePct = priorMonthWealth ? pctChange(wealth.businessValue, priorMonthWealth.businessValue) : null;
+  const otherAssetsMoMChangePct = priorOtherAssetsTotal !== null ? pctChange(otherAssetsTotal, priorOtherAssetsTotal) : null;
+
   return {
     netWorth,
     latestSnapshotDate: latestDate,
@@ -136,6 +177,13 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
     currentMonthExpense: currentMonthRow.expense,
     expenseMoMChangePct,
     investmentGainPct: capitalMarket.returnPct !== null ? capitalMarket.returnPct / 100 : null,
+    previousMonthLabel,
+    liquidAssetsMoMChangePct,
+    nonLiquidAssetsMoMChangePct,
+    cashMoMChangePct,
+    investmentMoMChangePct,
+    businessMoMChangePct,
+    otherAssetsMoMChangePct,
     healthStatus,
   };
 }
