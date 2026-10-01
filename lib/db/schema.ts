@@ -69,6 +69,7 @@ export const assetValueSnapshots = pgTable(
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
     snapshotDate: date("snapshot_date").notNull(),
+    categoryAtDate: assetCategoryEnum("category_at_date"),
     currentValue: numeric("current_value", { precision: 16, scale: 2 }).notNull(),
     /**
      * Cumulative capital contributed (deposits minus withdrawals) as of this
@@ -330,3 +331,13 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   category: one(categories, { fields: [transactions.categoryId], references: [categories.id] }),
   subcategory: one(subcategories, { fields: [transactions.subcategoryId], references: [subcategories.id] }),
 }));
+
+// Positive outstanding balances; deducted from assets only as of their report date.
+export const payableSnapshots = pgTable("payable_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  creditor: text("creditor").notNull(),
+  snapshotDate: date("snapshot_date").notNull(),
+  amount: numeric("amount", { precision: 16, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("payable_snapshots_creditor_date_idx").on(table.creditor, table.snapshotDate)]);

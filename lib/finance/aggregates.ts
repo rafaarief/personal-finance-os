@@ -7,6 +7,20 @@ function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : parseFloat(value);
 }
 
+export async function getAccountsPayable(asOf?: string) {
+  const rows = await getDb().execute<{ creditor: string; amount: string; notes: string | null }>(sql`
+    select distinct on (creditor) creditor, amount, notes
+    from ${schema.payableSnapshots}
+    where ${asOf ? sql`snapshot_date <= ${asOf}` : sql`true`}
+    order by creditor, snapshot_date desc
+  `);
+  return rows.map(row => ({ ...row, amount: toNumber(row.amount) }));
+}
+
+async function payableTotal(asOf?: string) {
+  return (await getAccountsPayable(asOf)).reduce((sum, row) => sum + row.amount, 0);
+}
+
 // --- Module 1: Wealth Dashboard ---------------------------------------------
 
 export interface WealthSummary {
@@ -86,7 +100,9 @@ export async function getWealthSummary(): Promise<WealthSummary> {
     .where(eq(schema.assets.isActive, true))
     .groupBy(schema.assets.category);
 
-  return summarizeByCategory(rows);
+  const summary = summarizeByCategory(rows);
+  summary.netWorth -= await payableTotal();
+  return summary;
 }
 
 /**
@@ -156,10 +172,10 @@ export async function getWealthSummaryAsOf(snapshotDate: string): Promise<Wealth
       select id, category from ${schema.assets} where is_active = true
     ),
     latest_per_asset as (
-      select aa.category, f.current_value
+      select coalesce(f.category_at_date, aa.category) as category, f.current_value
       from active_assets aa
       join lateral (
-        select s.current_value
+        select s.current_value, s.category_at_date
         from ${schema.assetValueSnapshots} s
         where s.asset_id = aa.id and s.snapshot_date <= ${snapshotDate}
         order by s.snapshot_date desc
@@ -171,7 +187,9 @@ export async function getWealthSummaryAsOf(snapshotDate: string): Promise<Wealth
     group by category
   `);
 
-  return summarizeByCategory(rows);
+  const summary = summarizeByCategory(rows);
+  summary.netWorth -= await payableTotal(snapshotDate);
+  return summary;
 }
 
 export interface SnapshotChange {
@@ -266,7 +284,18 @@ export async function getNetWorthHistoryExact(): Promise<NetWorthHistoryExactPoi
     order by month_start
   `);
 
-  return rows.map((row) => ({ snapshotDate: row.month_start, netWorth: toNumber(row.total) }));
+  const liabilities = await getDb().select().from(schema.payableSnapshots);
+  return rows.map((row) => {
+    const latest = new Map<string, typeof liabilities[number]>();
+    for (const liability of liabilities) {
+      if (liability.snapshotDate <= row.month_start &&
+          (!latest.has(liability.creditor) || latest.get(liability.creditor)!.snapshotDate < liability.snapshotDate)) {
+        latest.set(liability.creditor, liability);
+      }
+    }
+    const payable = [...latest.values()].reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+    return { snapshotDate: row.month_start, netWorth: toNumber(row.total) - payable };
+  });
 }
 
 // --- Module 6a: Capital Market / Business valuation (per-asset, individually editable) ---
@@ -446,10 +475,10 @@ export async function getCategoryValueHistory(category: string): Promise<Categor
       select distinct s.snapshot_date
       from ${schema.assetValueSnapshots} s
       join ${schema.assets} a on a.id = s.asset_id
-      where a.category = ${category}
+      where coalesce(s.category_at_date, a.category) = ${category}
     ),
     active_assets as (
-      select id from ${schema.assets} where category = ${category} and is_active = true
+      select id, category from ${schema.assets} where is_active = true
     ),
     filled as (
       select d.snapshot_date, aa.id as asset_id, f.current_value,
@@ -457,12 +486,12 @@ export async function getCategoryValueHistory(category: string): Promise<Categor
       from dates d
       cross join active_assets aa
       join lateral (
-        select s2.current_value, s2.capital_contributed
+        select s2.current_value, s2.capital_contributed, s2.category_at_date
         from ${schema.assetValueSnapshots} s2
         where s2.asset_id = aa.id and s2.snapshot_date <= d.snapshot_date
         order by s2.snapshot_date desc
         limit 1
-      ) f on true
+      ) f on coalesce(f.category_at_date, aa.category) = ${category}
       left join lateral (
         select s3.capital_contributed
         from ${schema.assetValueSnapshots} s3
@@ -495,6 +524,7 @@ export const getBusinessSummary = () => getCategorySummary("business");
 export const getBusinessValueHistory = () => getCategoryValueHistory("business");
 
 export interface NetWorthSummary {
+  totalLiabilities: number;
   netWorth: number;
   liquidAssets: number;
   nonLiquidAssets: number;
@@ -545,8 +575,10 @@ export async function getNetWorthSummary(): Promise<NetWorthSummary> {
   const liquidAssets = cashPosition + capitalMarketValue;
   const nonLiquidAssets = businessValue + otherAssetsValue;
 
+  const totalLiabilities = await payableTotal();
   return {
-    netWorth: liquidAssets + nonLiquidAssets,
+    totalLiabilities,
+    netWorth: liquidAssets + nonLiquidAssets - totalLiabilities,
     liquidAssets,
     nonLiquidAssets,
     cashPosition,

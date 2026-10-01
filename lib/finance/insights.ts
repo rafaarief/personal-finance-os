@@ -19,6 +19,7 @@ function pctChange(current: number, previous: number): number | null {
 export type HealthStatus = "excellent" | "good" | "attention";
 
 export interface FinancialSignals {
+  totalLiabilities: number;
   netWorth: number;
   latestSnapshotDate: string | null;
   previousSnapshotDate: string | null;
@@ -166,6 +167,7 @@ export async function computeFinancialSignals(): Promise<FinancialSignals> {
   const otherAssetsMoMChangeAmount = priorOtherAssetsTotal !== null ? otherAssetsTotal - priorOtherAssetsTotal : null;
 
   return {
+    totalLiabilities: wealth.totalLiabilities,
     netWorth,
     latestSnapshotDate: latestDate,
     previousSnapshotDate: snapshotChange?.previousDate ?? null,

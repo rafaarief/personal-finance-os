@@ -84,6 +84,7 @@ export async function setAssetValueAsOf(params: SetAssetValueParams): Promise<vo
     .insert(schema.assetValueSnapshots)
     .values({
       assetId,
+      categoryAtDate: assetRow?.category,
       snapshotDate,
       currentValue: currentValue.toString(),
       capitalContributed: carriedCapital,

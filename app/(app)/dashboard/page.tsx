@@ -1,4 +1,4 @@
-import { getNetWorthHistoryExact } from "@/lib/finance/aggregates";
+import { getNetWorthHistoryExact, getAccountsPayable } from "@/lib/finance/aggregates";
 import { computeFinancialSignals, computeHighlights } from "@/lib/finance/insights";
 import { getOrCreateTodaysReview } from "@/lib/ai/generateFinancialReview";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABELS } from "@/lib/finance/hierarchy";
@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const signals = await computeFinancialSignals();
+  const payables = await getAccountsPayable();
   const highlights = computeHighlights(signals);
 
   const [history, review] = await Promise.all([getNetWorthHistoryExact(), getOrCreateTodaysReview(signals, highlights)]);
@@ -133,6 +134,20 @@ export default async function DashboardPage() {
           ]}
         />
       </div>
+
+      {signals.totalLiabilities > 0 ? (
+        <GlassCard>
+          <h2 className="font-(family-name:--font-display) text-xl">Accounts Payable</h2>
+          {payables.map((entry) => (
+            <div key={entry.creditor} className="mt-3 flex flex-wrap justify-between gap-2">
+              <span>{entry.creditor}</span><span>{formatMoney(entry.amount)}</span>
+            </div>
+          ))}
+          <p className="mt-3 text-sm text-(--color-ink-muted)">
+            Total assets {formatMoney(signals.liquidAssets + signals.nonLiquidAssets)} − accounts payable {formatMoney(signals.totalLiabilities)} = net worth {formatMoney(signals.netWorth)}.
+          </p>
+        </GlassCard>
+      ) : null}
 
       <GlassCard>
         <h2 className="font-(family-name:--font-display) text-xl text-(--color-ink-primary)">Net worth over time</h2>

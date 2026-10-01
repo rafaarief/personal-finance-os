@@ -37,6 +37,7 @@ async function callDeepseekForReview(signals: FinancialSignals, highlights: High
   const payload = {
     signals: {
       netWorth: signals.netWorth,
+      totalLiabilities: signals.totalLiabilities,
       snapshotChangeAmount: signals.snapshotChangeAmount,
       snapshotChangePct: signals.snapshotChangePct,
       previousSnapshotDate: signals.previousSnapshotDate,
@@ -83,8 +84,8 @@ async function callDeepseekForReview(signals: FinancialSignals, highlights: High
 
 /**
  * Returns today's AI narrative, generating + caching it on first call of the
- * day. The `financial_reviews` row (keyed by reviewDate, unique) *is* the
- * cache — a second call the same day just reads it back, no DeepSeek call.
+ * day. The `financial_reviews` row (keyed by reviewDate, unique) is reused
+ * while net worth is unchanged; balance-sheet updates refresh the narrative.
  * Highlights/allocation numbers on the page are always computed fresh
  * (cheap, deterministic); only the AI prose is what's cached here.
  */
@@ -101,7 +102,7 @@ export async function getOrCreateTodaysReview(
     .where(eq(schema.financialReviews.reviewDate, today))
     .limit(1);
 
-  if (existing) {
+  if (existing && Number(existing.netWorth) === signals.netWorth) {
     return { summary: existing.summary, recommendation: existing.recommendation };
   }
 
@@ -126,7 +127,7 @@ export async function getOrCreateTodaysReview(
       summary: result.summary,
       recommendation: result.recommendation,
     })
-    .onConflictDoNothing({ target: schema.financialReviews.reviewDate });
+    .onConflictDoUpdate({ target: schema.financialReviews.reviewDate, set: { netWorth: signals.netWorth.toString(), highlights, summary: result.summary, recommendation: result.recommendation } });
 
   return result;
 }
