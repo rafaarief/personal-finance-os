@@ -153,3 +153,52 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Overview: quieter surfaces, readable exact amounts, progressive disclosure. */
+.overview { --color-ink-muted: #716b7b; }
+.overview .glass-card { border-radius: 18px; background: #fffdf9; box-shadow: 0 2px 5px rgb(30 25 35 / 3%); }
+.overview .overview-hero { padding: 30px; border-left: 4px solid #71634f; background: #fffdf9; }
+.overview .overview-hero .kpi-figure-lg { font-size: clamp(1.85rem, 4vw, 3.15rem); letter-spacing: -.045em; line-height: 1.25; }
+.overview-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: .16em; color: #716b7b; }
+.closing-panel { background: #fffdf9; border: 1px solid var(--color-border-hairline); border-radius: 18px; overflow: hidden; }
+.closing-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; padding:24px 26px 20px; }
+.closing-heading h2 { font-size:20px; margin-top:5px; font-weight:500; letter-spacing:-.03em; }
+.closing-period { font-size:12px; color:#716b7b; }
+.closing-metrics { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding:0 12px 20px; }
+.closing-metric { min-width:0; padding:18px 20px; }
+.closing-metric + .closing-metric { border-left:1px solid #e9e5de; }
+.closing-label { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; }
+.metric-icon { font-size:17px; color:#716b7b; }
+.closing-number { font-size:clamp(1.25rem,2.2vw,1.85rem); font-weight:600; letter-spacing:-.045em; font-variant-numeric:tabular-nums; white-space:nowrap; margin-top:14px; line-height:1.25; }
+.closing-caption { color:#716b7b; font-size:12px; line-height:1.6; margin-top:10px; }
+.closing-saving { background:#eff5ee; border-radius:12px; color:#295637; }
+.estimate-tag { font-size:10px; padding:3px 7px; background:#f0ede7; color:#716454; border-radius:5px; font-weight:500; }
+.closing-details { border-top:1px solid #e9e5de; }
+.closing-details summary { cursor:pointer; padding:16px 26px; display:flex; justify-content:space-between; font-size:12px; font-weight:500; color:#5b5468; list-style:none; }
+.closing-details summary::-webkit-details-marker { display:none; }
+.closing-details summary:focus-visible { outline:2px solid #70449c; outline-offset:-4px; }
+.closing-details[open] summary span { transform:rotate(45deg); }
+.closing-details-content { padding:0 26px 24px; display:grid; grid-template-columns:1fr 1fr; gap:36px; font-size:13px; }
+.closing-details-content dl > div { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid #eee9e2; }
+.closing-details-content dd { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.closing-details-content p { color:#716b7b; line-height:1.8; }
+.overview .asset-summary .kpi-figure { font-family:var(--font-sans); font-size:clamp(1.5rem,2.7vw,2.15rem); font-weight:550; letter-spacing:-.045em; line-height:1.3; }
+.asset-delta { white-space:normal; line-height:1.7; font-size:12px; }
+.overview .asset-summary-meta > span:first-child { font-size:12px; }
+.asset-breakdown { border-top:1px solid #eee9e2; padding-top:20px; }
+.payable-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; }
+.balance-equation { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:20px; padding-top:18px; border-top:1px solid #eee9e2; }
+.balance-equation span { display:block; color:#716b7b; font-size:11px; margin-bottom:6px; }
+.balance-equation strong { font-weight:500; font-size:14px; font-variant-numeric:tabular-nums; }
+@media(max-width:767px) {
+  .closing-metrics { grid-template-columns:1fr; padding:0 16px 16px; }
+  .closing-metric { padding:20px 12px; }
+  .closing-metric + .closing-metric { border-left:0; border-top:1px solid #e9e5de; }
+  .closing-number { font-size:1.8rem; }
+  .closing-heading { padding:20px; }
+  .closing-period { display:none; }
+  .closing-details-content { grid-template-columns:1fr; gap:20px; padding:0 20px 20px; }
+  .balance-equation { grid-template-columns:1fr; gap:12px; }
+  .balance-equation > div { display:flex; justify-content:space-between; gap:8px; }
+  .overview .overview-hero { padding:22px 18px; }
+}

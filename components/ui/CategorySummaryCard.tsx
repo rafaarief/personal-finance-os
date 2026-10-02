@@ -41,15 +41,16 @@ function MoMChange({
   previousMonthLabel: string | null | undefined;
 }) {
   if (changePct === null || changePct === undefined || !previousMonthLabel) return null;
-  const positive = changePct >= 0;
+  const positive = changePct > 0;
+  const neutral = changePct === 0;
   return (
     <span
-      className="tabular whitespace-nowrap"
-      style={{ color: positive ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
+      className="tabular asset-delta"
+      style={{ color: neutral ? "var(--color-ink-secondary)" : positive ? "var(--color-delta-positive-strong)" : "var(--color-delta-negative-strong)" }}
     >
-      {positive ? "▲" : "▼"} {Math.abs(changePct * 100).toFixed(1)}%
+      {neutral ? "—" : positive ? "▲" : "▼"} {Math.abs(changePct * 100).toFixed(1)}%
       {changeAmount !== null && changeAmount !== undefined
-        ? ` (${positive ? "+" : "-"}${formatMoney(Math.abs(changeAmount))})`
+        ? ` (${neutral ? "" : positive ? "+" : "-"}${formatMoney(Math.abs(changeAmount))})`
         : ""}{" "}
       vs {previousMonthLabel}
     </span>
@@ -66,22 +67,22 @@ export function CategorySummaryCard({
   previousMonthLabel,
 }: CategorySummaryCardProps) {
   return (
-    <GlassCard className="flex flex-col">
+    <GlassCard className="asset-summary flex flex-col">
       <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">{title}</p>
       <p className="kpi-figure mt-2 font-(family-name:--font-display) text-(--color-ink-primary)">{formatMoney(total)}</p>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+      <div className="asset-summary-meta mt-3 flex flex-col items-start gap-2 text-sm">
         {percentOfNetWorth !== null ? (
           <span className="text-(--color-ink-secondary)">{(percentOfNetWorth * 100).toFixed(1)}% of Net Worth</span>
         ) : null}
         <MoMChange changePct={changePct} changeAmount={changeAmount} previousMonthLabel={previousMonthLabel} />
       </div>
 
-      <div className="mt-5 space-y-4">
+      <div className="asset-breakdown mt-6 space-y-5">
         {breakdown.map((item) => {
           const share = total > 0 ? item.value / total : 0;
           return (
             <div key={item.label}>
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="flex items-center gap-2 text-sm text-(--color-ink-primary)">
                   <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
                   {item.label}

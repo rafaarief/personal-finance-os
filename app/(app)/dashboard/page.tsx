@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     }));
 
   return (
-    <div className="space-y-8">
+    <div className="overview space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm tracking-[0.15em] text-(--color-ink-muted) uppercase">Your Financial Position</p>
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
         <HealthBadge status={signals.healthStatus} />
       </div>
 
-      <GlassCard>
+      <GlassCard className="overview-hero">
         <p className="text-xs tracking-[0.15em] text-(--color-ink-muted) uppercase">Net Worth</p>
         <p className="kpi-figure-lg mt-2 font-(family-name:--font-display) text-(--color-ink-primary)">
           {formatMoney(signals.netWorth)}
@@ -83,32 +83,37 @@ export default async function DashboardPage() {
       </GlassCard>
 
       {monthlyClosing ? (
-        <section aria-label={`Tutup buku ${closingLabel}`} className="space-y-3">
-          <h2 className="font-(family-name:--font-display) text-xl">Tutup buku {closingLabel}</h2>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <GlassCard>
-              <h3 className="text-sm text-(--color-ink-muted)">Pemasukan {closingLabel}</h3>
-              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.income)}</p>
-              <div className="mt-4 space-y-2 text-sm">
-                {monthlyClosing.incomeItems.map((item) => (
-                  <div key={item.source} className="flex flex-wrap justify-between gap-2">
-                    <span>{item.source}</span><span>{formatMoney(item.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-            <GlassCard>
-              <h3 className="text-sm text-(--color-ink-muted)">Pengeluaran {closingLabel} (estimasi)</h3>
-              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.expense)}</p>
-              <p className="mt-4 text-sm text-(--color-ink-muted)">Pemasukan dikurangi saving.</p>
-            </GlassCard>
-            <GlassCard>
-              <h3 className="text-sm text-(--color-ink-muted)">Saving {closingLabel}</h3>
-              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.saving)}</p>
-              <p className="mt-4 text-sm text-(--color-ink-muted)">Perubahan net worth dari awal bulan ke awal bulan berikutnya, setelah kewajiban.</p>
-            </GlassCard>
+        <section aria-label={`Tutup buku ${closingLabel}`} className="closing-panel">
+          <div className="closing-heading">
+            <div><p className="overview-eyebrow">RINGKASAN BULANAN</p><h2>Tutup buku {closingLabel}</h2></div>
+            <span className="closing-period">Pemasukan − pengeluaran = saving</span>
           </div>
-          <p className="text-xs text-(--color-ink-muted)">Perubahan valuasi aset juga memengaruhi saving dan estimasi pengeluaran.</p>
+          <div className="closing-metrics">
+            <div className="closing-metric">
+              <p className="closing-label"><span className="metric-icon">↙</span>Pemasukan</p>
+              <p className="closing-number">{formatMoney(monthlyClosing.income)}</p>
+              <p className="closing-caption">{monthlyClosing.incomeItems.length} sumber pemasukan</p>
+            </div>
+            <div className="closing-metric">
+              <p className="closing-label"><span className="metric-icon">↗</span>Pengeluaran <span className="estimate-tag">Estimasi</span></p>
+              <p className="closing-number">{formatMoney(monthlyClosing.expense)}</p>
+              <p className="closing-caption">Pemasukan dikurangi saving</p>
+            </div>
+            <div className="closing-metric closing-saving">
+              <p className="closing-label"><span className="metric-icon">+</span>Saving</p>
+              <p className="closing-number">{formatMoney(monthlyClosing.saving)}</p>
+              <p className="closing-caption">Kenaikan net worth setelah kewajiban</p>
+            </div>
+          </div>
+          <details className="closing-details">
+            <summary>Rincian pemasukan & cara perhitungan <span aria-hidden>＋</span></summary>
+            <div className="closing-details-content">
+              <dl>{monthlyClosing.incomeItems.map((item) => (
+                <div key={item.source}><dt>{item.source}</dt><dd>{formatMoney(item.amount)}</dd></div>
+              ))}</dl>
+              <p>Saving dihitung dari perubahan net worth awal bulan ke awal bulan berikutnya. Perubahan valuasi aset juga memengaruhi saving dan estimasi pengeluaran.</p>
+            </div>
+          </details>
         </section>
       ) : null}
 
@@ -168,16 +173,18 @@ export default async function DashboardPage() {
       </div>
 
       {signals.totalLiabilities > 0 ? (
-        <GlassCard>
-          <h2 className="font-(family-name:--font-display) text-xl">Accounts Payable</h2>
+        <GlassCard className="overview-payable">
+          <div className="payable-heading"><h2 className="font-(family-name:--font-display) text-xl">Accounts Payable</h2><span className="estimate-tag">Pengurang net worth</span></div>
           {payables.map((entry) => (
             <div key={entry.creditor} className="mt-3 flex flex-wrap justify-between gap-2">
               <span>{entry.creditor}</span><span>{formatMoney(entry.amount)}</span>
             </div>
           ))}
-          <p className="mt-3 text-sm text-(--color-ink-muted)">
-            Total assets {formatMoney(signals.liquidAssets + signals.nonLiquidAssets)} − accounts payable {formatMoney(signals.totalLiabilities)} = net worth {formatMoney(signals.netWorth)}.
-          </p>
+          <div className="balance-equation">
+            <div><span>Total aset</span><strong>{formatMoney(signals.liquidAssets + signals.nonLiquidAssets)}</strong></div>
+            <div><span>− Kewajiban</span><strong>{formatMoney(signals.totalLiabilities)}</strong></div>
+            <div><span>= Net worth</span><strong>{formatMoney(signals.netWorth)}</strong></div>
+          </div>
         </GlassCard>
       ) : null}
 
