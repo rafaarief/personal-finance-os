@@ -341,3 +341,12 @@ export const payableSnapshots = pgTable("payable_snapshots", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("payable_snapshots_creditor_date_idx").on(table.creditor, table.snapshotDate)]);
+
+// Owner-reported monthly income, independent of transaction imports.
+// Saving and inferred expense are derived from dated net worth, never entered twice.
+export const monthlyClosings = pgTable("monthly_closings", {
+  month: date("month").primaryKey(),
+  incomeItems: jsonb("income_items").$type<{ source: string; amount: number }[]>().notNull(),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

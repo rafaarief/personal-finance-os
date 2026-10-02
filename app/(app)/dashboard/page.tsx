@@ -1,3 +1,4 @@
+import { getLatestMonthlyClosing } from "@/lib/finance/monthlyClosing";
 import { getNetWorthHistoryExact, getAccountsPayable } from "@/lib/finance/aggregates";
 import { computeFinancialSignals, computeHighlights } from "@/lib/finance/insights";
 import { getOrCreateTodaysReview } from "@/lib/ai/generateFinancialReview";
@@ -17,7 +18,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const signals = await computeFinancialSignals();
-  const payables = await getAccountsPayable();
+  const [payables, monthlyClosing] = await Promise.all([getAccountsPayable(), getLatestMonthlyClosing()]);
+  const closingLabel = monthlyClosing ? new Date(`${monthlyClosing.month}T00:00:00Z`).toLocaleDateString("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
   const highlights = computeHighlights(signals);
 
   const [history, review] = await Promise.all([getNetWorthHistoryExact(), getOrCreateTodaysReview(signals, highlights)]);
@@ -79,6 +81,36 @@ export default async function DashboardPage() {
           </p>
         ) : null}
       </GlassCard>
+
+      {monthlyClosing ? (
+        <section aria-label={`Tutup buku ${closingLabel}`} className="space-y-3">
+          <h2 className="font-(family-name:--font-display) text-xl">Tutup buku {closingLabel}</h2>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <GlassCard>
+              <h3 className="text-sm text-(--color-ink-muted)">Pemasukan {closingLabel}</h3>
+              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.income)}</p>
+              <div className="mt-4 space-y-2 text-sm">
+                {monthlyClosing.incomeItems.map((item) => (
+                  <div key={item.source} className="flex flex-wrap justify-between gap-2">
+                    <span>{item.source}</span><span>{formatMoney(item.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+            <GlassCard>
+              <h3 className="text-sm text-(--color-ink-muted)">Pengeluaran {closingLabel} (estimasi)</h3>
+              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.expense)}</p>
+              <p className="mt-4 text-sm text-(--color-ink-muted)">Pemasukan dikurangi saving.</p>
+            </GlassCard>
+            <GlassCard>
+              <h3 className="text-sm text-(--color-ink-muted)">Saving {closingLabel}</h3>
+              <p className="kpi-figure mt-2">{formatMoney(monthlyClosing.saving)}</p>
+              <p className="mt-4 text-sm text-(--color-ink-muted)">Perubahan net worth dari awal bulan ke awal bulan berikutnya, setelah kewajiban.</p>
+            </GlassCard>
+          </div>
+          <p className="text-xs text-(--color-ink-muted)">Perubahan valuasi aset juga memengaruhi saving dan estimasi pengeluaran.</p>
+        </section>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <CategorySummaryCard

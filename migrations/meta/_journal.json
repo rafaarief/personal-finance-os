@@ -57,6 +57,13 @@
       "when": 1790824201967,
       "tag": "0007_careless_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790923317619,
+      "tag": "0008_stormy_terror",
+      "breakpoints": true
     }
   ]
 }
